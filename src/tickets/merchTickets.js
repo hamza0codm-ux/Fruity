@@ -645,7 +645,7 @@ export async function createMerchTicket(
                         'Priority'
                     )
                     .setEmoji(
-                        '📊'
+                        '💼'
                     )
                     .setStyle(
                         ButtonStyle.Secondary
