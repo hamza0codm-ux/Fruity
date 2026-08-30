@@ -3,10 +3,8 @@ import createTicketHandler, {
   closeTicketHandler,
   closeTicketModalHandler,
   claimTicketHandler,
-
   priorityMenuHandler,
   priorityTicketHandler,
-
   pinTicketHandler,
   unclaimTicketHandler,
   reopenTicketHandler,
@@ -24,27 +22,20 @@ import {
 } from '../../../tickets/merchTickets.js';
 
 export default [
-  // Legacy / normal ticket creation
+  // Legacy ticket system
   createTicketHandler,
-  createTicketModalHandler,
 
-  // Normal Tickets
+  // Normal tickets
   normalTicketCreateButton,
-  normalTicketModal,
 
-  // Merch Tickets
+  // Merch tickets
   merchTicketCreateButton,
-  merchTicketModal,
 
-  // Existing ticket controls
+  // Ticket controls
   closeTicketHandler,
-  closeTicketModalHandler,
   claimTicketHandler,
-
-  // Priority menu + priority selection
   priorityMenuHandler,
   priorityTicketHandler,
-
   pinTicketHandler,
   unclaimTicketHandler,
   reopenTicketHandler,
