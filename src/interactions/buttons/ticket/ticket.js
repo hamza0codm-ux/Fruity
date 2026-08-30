@@ -1,9 +1,10 @@
 import createTicketHandler, {
+  createTicketModalHandler,
   closeTicketHandler,
+  closeTicketModalHandler,
   claimTicketHandler,
 
-  priorityMenuTicketHandler,
-  priorityModalTicketHandler,
+  priorityMenuHandler,
   priorityTicketHandler,
 
   pinTicketHandler,
@@ -14,46 +15,34 @@ import createTicketHandler, {
 
 import {
   normalTicketCreateButton,
+  normalTicketModal,
 } from '../../../tickets/normalTickets.js';
 
 import {
   merchTicketCreateButton,
+  merchTicketModal,
 } from '../../../tickets/merchTickets.js';
 
-
 export default [
-  /*
-   * Generic ticket creation
-   */
+  // Legacy / normal ticket creation
   createTicketHandler,
+  createTicketModalHandler,
 
-  /*
-   * Normal Tickets
-   */
+  // Normal Tickets
   normalTicketCreateButton,
+  normalTicketModal,
 
-  /*
-   * Merch Tickets
-   */
+  // Merch Tickets
   merchTicketCreateButton,
+  merchTicketModal,
 
-  /*
-   * Existing ticket controls
-   */
+  // Existing ticket controls
   closeTicketHandler,
+  closeTicketModalHandler,
   claimTicketHandler,
 
-  /*
-   * NEW:
-   * Normal + Merch tickets use
-   * ticket_priority_menu.
-   */
-  priorityMenuTicketHandler,
-
-  /*
-   * Existing direct priority buttons
-   * such as ticket_priority:high.
-   */
+  // Priority menu + priority selection
+  priorityMenuHandler,
   priorityTicketHandler,
 
   pinTicketHandler,
