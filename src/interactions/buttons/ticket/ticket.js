@@ -1,45 +1,62 @@
 import createTicketHandler, {
-  closeTicketHandler,
-  claimTicketHandler,
-  priorityMenuHandler,
-  priorityTicketHandler,
-  pinTicketHandler,
-  unclaimTicketHandler,
-  reopenTicketHandler,
-  deleteTicketHandler,
+    closeTicketHandler,
+    claimTicketHandler,
+    priorityMenuHandler,
+    priorityTicketHandler,
+    pinTicketHandler,
+    unclaimTicketHandler,
+    reopenTicketHandler,
+    deleteTicketHandler,
 } from '../../../handlers/ticketButtons.js';
 
 import {
-  normalTicketCreateButton,
+    normalTicketCreateButton,
 } from '../../../tickets/normalTickets.js';
 
 import {
-  merchTicketCreateButton,
+    merchTicketCreateButton,
 } from '../../../tickets/merchTickets.js';
 
+
 export default [
-  // Legacy ticket creation
-  createTicketHandler,
+    // ==========================================
+    // LEGACY TICKET SYSTEM
+    // ==========================================
+    createTicketHandler,
 
-  // Normal ticket creation
-  normalTicketCreateButton,
 
-  // Merch ticket creation
-  merchTicketCreateButton,
+    // ==========================================
+    // NORMAL TICKET CREATION
+    // ==========================================
+    normalTicketCreateButton,
 
-  // Ticket controls
-  closeTicketHandler,
-  claimTicketHandler,
 
-  // IMPORTANT:
-  // This is the button that opens the priority menu.
-  priorityMenuHandler,
+    // ==========================================
+    // MERCH TICKET CREATION
+    // ==========================================
+    merchTicketCreateButton,
 
-  // This handles the actual priority selection.
-  priorityTicketHandler,
 
-  pinTicketHandler,
-  unclaimTicketHandler,
-  reopenTicketHandler,
-  deleteTicketHandler,
+    // ==========================================
+    // TICKET CONTROLS
+    // ==========================================
+    closeTicketHandler,
+
+    claimTicketHandler,
+
+    // Priority button:
+    // ticket_priority_menu
+    priorityMenuHandler,
+
+    // Priority selection:
+    // ticket_priority
+    priorityTicketHandler,
+
+    pinTicketHandler,
+
+    unclaimTicketHandler,
+
+    reopenTicketHandler,
+
+    deleteTicketHandler,
 ];
