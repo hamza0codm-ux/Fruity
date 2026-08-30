@@ -1,23 +1,26 @@
 import {
+  normalTicketModal,
+} from '../../../tickets/normalTickets.js';
+
+import {
+  merchTicketModal,
+} from '../../../tickets/merchTickets.js';
+
+import {
   createTicketModalHandler,
   closeTicketModalHandler,
-  priorityModalTicketHandler,
 } from '../../../handlers/ticketButtons.js';
 
-
 export default [
-  /*
-   * Generic ticket creation modal
-   */
+  // Normal Tickets
+  normalTicketModal,
+
+  // Merch Tickets
+  merchTicketModal,
+
+  // Legacy ticket creation
   createTicketModalHandler,
 
-  /*
-   * Close form
-   */
+  // Close form
   closeTicketModalHandler,
-
-  /*
-   * Priority form
-   */
-  priorityModalTicketHandler,
 ];
