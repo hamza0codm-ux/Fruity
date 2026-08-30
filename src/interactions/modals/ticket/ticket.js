@@ -1,6 +1,13 @@
 import {
-  createTicketModalHandler,
-  closeTicketModalHandler,
-} from '../../../handlers/ticketButtons.js';
+    normalTicketModal,
+} from '../../../tickets/normalTickets.js';
 
-export default [createTicketModalHandler, closeTicketModalHandler];
+import {
+    merchTicketModal,
+} from '../../../tickets/merchTickets.js';
+
+export default [
+    normalTicketModal,
+    merchTicketModal,
+];
+
