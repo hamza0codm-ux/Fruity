@@ -10,6 +10,8 @@ import {
     ModalBuilder,
     PermissionFlagsBits,
     SectionBuilder,
+    SeparatorBuilder,
+    SeparatorSpacingSize,
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
     TextDisplayBuilder,
@@ -161,21 +163,36 @@ export function buildNormalTicketPanel() {
                 NORMAL_TICKET_CONFIG.color
             );
 
+    /*
+     * HEADER
+     *
+     * Large title and description.
+     */
     container.addTextDisplayComponents(
         new TextDisplayBuilder().setContent(
-            `# ${NORMAL_TICKET_CONFIG.panelTitle}\n\n` +
+            `# 🎫 ${NORMAL_TICKET_CONFIG.panelTitle}\n\n` +
             NORMAL_TICKET_CONFIG.panelDescription
         )
     );
 
-    for (
-        let i = 0;
-        i < NORMAL_TICKET_CONFIG.buttons.length;
-        i++
-    ) {
-        const button =
-            NORMAL_TICKET_CONFIG.buttons[i];
+    /*
+     * LARGE DIVIDER
+     */
+    container.addSeparatorComponents(
+        new SeparatorBuilder()
+            .setSpacing(
+                SeparatorSpacingSize.Large
+            )
+            .setDivider(true)
+    );
 
+    /*
+     * TICKET OPTIONS
+     */
+    for (
+        const button
+        of NORMAL_TICKET_CONFIG.buttons
+    ) {
         const section =
             new SectionBuilder()
                 .addTextDisplayComponents(
@@ -189,8 +206,12 @@ export function buildNormalTicketPanel() {
                         .setCustomId(
                             `normal_ticket_create:${button.id}`
                         )
-                        .setLabel(button.label)
-                        .setEmoji(button.emoji)
+                        .setLabel(
+                            button.label
+                        )
+                        .setEmoji(
+                            button.emoji
+                        )
                         .setStyle(
                             ButtonStyle.Secondary
                         )
@@ -198,6 +219,17 @@ export function buildNormalTicketPanel() {
 
         container.addSectionComponents(
             section
+        );
+
+        /*
+         * LARGE DIVIDER AFTER EACH OPTION
+         */
+        container.addSeparatorComponents(
+            new SeparatorBuilder()
+                .setSpacing(
+                    SeparatorSpacingSize.Large
+                )
+                .setDivider(true)
         );
     }
 
@@ -400,11 +432,6 @@ export async function createNormalTicket(
             `${button.label}-${member.user.username}`
         );
 
-    /*
-     * If the user already has another ticket of
-     * this type, add (2), (3), etc.
-     */
-
     let ticketName =
         baseName;
 
@@ -583,12 +610,6 @@ export async function createNormalTicket(
                 }
             )
             .setTimestamp();
-
-    /*
-     * IMPORTANT:
-     *
-     * The staff role is NOT mentioned.
-     */
 
     const controls =
         new ActionRowBuilder()
