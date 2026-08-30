@@ -1,43 +1,37 @@
 import createTicketHandler, {
-  createTicketModalHandler,
-  closeTicketHandler,
-  closeTicketModalHandler,
-  claimTicketHandler,
-  priorityMenuHandler,
-  priorityTicketHandler,
-  pinTicketHandler,
-  unclaimTicketHandler,
-  reopenTicketHandler,
-  deleteTicketHandler,
+    closeTicketHandler,
+    claimTicketHandler,
+    priorityTicketHandler,
+    pinTicketHandler,
+    unclaimTicketHandler,
+    reopenTicketHandler,
+    deleteTicketHandler,
 } from '../../../handlers/ticketButtons.js';
 
 import {
-  normalTicketCreateButton,
-  normalTicketModal,
+    normalTicketCreateButton,
 } from '../../../tickets/normalTickets.js';
 
 import {
-  merchTicketCreateButton,
-  merchTicketModal,
+    merchTicketCreateButton,
 } from '../../../tickets/merchTickets.js';
 
 export default [
-  // Legacy ticket system
-  createTicketHandler,
+    // Legacy ticket creation
+    createTicketHandler,
 
-  // Normal tickets
-  normalTicketCreateButton,
+    // Normal ticket creation buttons
+    normalTicketCreateButton,
 
-  // Merch tickets
-  merchTicketCreateButton,
+    // Merch ticket creation buttons
+    merchTicketCreateButton,
 
-  // Ticket controls
-  closeTicketHandler,
-  claimTicketHandler,
-  priorityMenuHandler,
-  priorityTicketHandler,
-  pinTicketHandler,
-  unclaimTicketHandler,
-  reopenTicketHandler,
-  deleteTicketHandler,
+    // Ticket controls
+    closeTicketHandler,
+    claimTicketHandler,
+    priorityTicketHandler,
+    pinTicketHandler,
+    unclaimTicketHandler,
+    reopenTicketHandler,
+    deleteTicketHandler,
 ];
