@@ -1,37 +1,45 @@
 import createTicketHandler, {
-    closeTicketHandler,
-    claimTicketHandler,
-    priorityTicketHandler,
-    pinTicketHandler,
-    unclaimTicketHandler,
-    reopenTicketHandler,
-    deleteTicketHandler,
+  closeTicketHandler,
+  claimTicketHandler,
+  priorityMenuHandler,
+  priorityTicketHandler,
+  pinTicketHandler,
+  unclaimTicketHandler,
+  reopenTicketHandler,
+  deleteTicketHandler,
 } from '../../../handlers/ticketButtons.js';
 
 import {
-    normalTicketCreateButton,
+  normalTicketCreateButton,
 } from '../../../tickets/normalTickets.js';
 
 import {
-    merchTicketCreateButton,
+  merchTicketCreateButton,
 } from '../../../tickets/merchTickets.js';
 
 export default [
-    // Legacy ticket creation
-    createTicketHandler,
+  // Legacy ticket creation
+  createTicketHandler,
 
-    // Normal ticket creation buttons
-    normalTicketCreateButton,
+  // Normal ticket creation
+  normalTicketCreateButton,
 
-    // Merch ticket creation buttons
-    merchTicketCreateButton,
+  // Merch ticket creation
+  merchTicketCreateButton,
 
-    // Ticket controls
-    closeTicketHandler,
-    claimTicketHandler,
-    priorityTicketHandler,
-    pinTicketHandler,
-    unclaimTicketHandler,
-    reopenTicketHandler,
-    deleteTicketHandler,
+  // Ticket controls
+  closeTicketHandler,
+  claimTicketHandler,
+
+  // IMPORTANT:
+  // This is the button that opens the priority menu.
+  priorityMenuHandler,
+
+  // This handles the actual priority selection.
+  priorityTicketHandler,
+
+  pinTicketHandler,
+  unclaimTicketHandler,
+  reopenTicketHandler,
+  deleteTicketHandler,
 ];
