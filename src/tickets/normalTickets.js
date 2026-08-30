@@ -608,7 +608,7 @@ export async function createNormalTicket(
                         'ticket_priority_menu'
                     )
                     .setLabel('Priority')
-                    .setEmoji('📊')
+                    .setEmoji('💼')
                     .setStyle(
                         ButtonStyle.Secondary
                     ),
