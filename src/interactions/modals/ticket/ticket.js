@@ -12,15 +12,15 @@ import {
 } from '../../../handlers/ticketButtons.js';
 
 export default [
-  // Normal Tickets
+  // Normal tickets
   normalTicketModal,
 
-  // Merch Tickets
+  // Merch tickets
   merchTicketModal,
 
-  // Legacy ticket creation
+  // Legacy ticket system
   createTicketModalHandler,
 
-  // Close form
+  // Ticket close form
   closeTicketModalHandler,
 ];
