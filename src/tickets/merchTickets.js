@@ -10,6 +10,8 @@ import {
     ModalBuilder,
     PermissionFlagsBits,
     SectionBuilder,
+    SeparatorBuilder,
+    SeparatorSpacingSize,
     TextDisplayBuilder,
     TextInputBuilder,
     TextInputStyle,
@@ -181,13 +183,33 @@ export function buildMerchTicketPanel() {
                 MERCH_TICKET_CONFIG.color
             );
 
+    /*
+     * TITLE + DESCRIPTION
+     */
+
     container.addTextDisplayComponents(
         new TextDisplayBuilder()
             .setContent(
-                `# ${MERCH_TICKET_CONFIG.panelTitle}\n\n` +
+                `# 🛍️ ${MERCH_TICKET_CONFIG.panelTitle}\n\n` +
                 MERCH_TICKET_CONFIG.panelDescription
             )
     );
+
+    /*
+     * LARGE DIVIDER
+     */
+
+    container.addSeparatorComponents(
+        new SeparatorBuilder()
+            .setDivider(true)
+            .setSpacing(
+                SeparatorSpacingSize.Large
+            )
+    );
+
+    /*
+     * TICKET OPTIONS
+     */
 
     for (
         const button
@@ -221,7 +243,49 @@ export function buildMerchTicketPanel() {
         container.addSectionComponents(
             section
         );
+
+        /*
+         * LARGE DIVIDER BETWEEN OPTIONS
+         */
+
+        if (
+            button !==
+            MERCH_TICKET_CONFIG.buttons[
+                MERCH_TICKET_CONFIG.buttons.length - 1
+            ]
+        ) {
+            container.addSeparatorComponents(
+                new SeparatorBuilder()
+                    .setDivider(true)
+                    .setSpacing(
+                        SeparatorSpacingSize.Large
+                    )
+            );
+        }
     }
+
+    /*
+     * BOTTOM DIVIDER
+     */
+
+    container.addSeparatorComponents(
+        new SeparatorBuilder()
+            .setDivider(true)
+            .setSpacing(
+                SeparatorSpacingSize.Large
+            )
+    );
+
+    /*
+     * FOOTER
+     */
+
+    container.addTextDisplayComponents(
+        new TextDisplayBuilder()
+            .setContent(
+                '🛍️ Select the button that best matches your request to open a merchandise support ticket.'
+            )
+    );
 
     return container;
 }
