@@ -2,7 +2,7 @@
 
 import { ChannelType } from 'discord.js';
 import { getGuildConfig } from '../../services/config/guildConfig.js';
-import { getTicketData } from '../../services/ticket.js';
+import { getTicketData } from '../database.js';
 import { logger } from '../logger.js';
 import {
   buildStandardLogEmbed,
