@@ -1,26 +1,12 @@
 import {
-  normalTicketModal,
+    normalTicketModal,
 } from '../../../tickets/normalTickets.js';
 
 import {
-  merchTicketModal,
+    merchTicketModal,
 } from '../../../tickets/merchTickets.js';
 
-import {
-  createTicketModalHandler,
-  closeTicketModalHandler,
-} from '../../../handlers/ticketButtons.js';
-
 export default [
-  // Normal tickets
-  normalTicketModal,
-
-  // Merch tickets
-  merchTicketModal,
-
-  // Legacy ticket system
-  createTicketModalHandler,
-
-  // Ticket close form
-  closeTicketModalHandler,
+    normalTicketModal,
+    merchTicketModal,
 ];
