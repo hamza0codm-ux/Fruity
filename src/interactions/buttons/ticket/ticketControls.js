@@ -1,8 +1,9 @@
 import {
     closeTicketHandler,
     claimTicketHandler,
-    priorityMenuHandler,
-    priorityTicketHandler,
+
+    priorityMenuTicketHandler,
+
     pinTicketHandler,
     unclaimTicketHandler,
     reopenTicketHandler,
@@ -11,11 +12,30 @@ import {
 
 
 export default [
+    // ==========================================
+    // CLOSE
+    // ==========================================
+
     closeTicketHandler,
+
+
+    // ==========================================
+    // CLAIM
+    // ==========================================
+
     claimTicketHandler,
 
-    priorityMenuHandler,
-    priorityTicketHandler,
+
+    // ==========================================
+    // PRIORITY
+    // ==========================================
+
+    priorityMenuTicketHandler,
+
+
+    // ==========================================
+    // OTHER TICKET CONTROLS
+    // ==========================================
 
     pinTicketHandler,
     unclaimTicketHandler,
