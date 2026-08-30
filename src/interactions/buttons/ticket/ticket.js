@@ -19,10 +19,10 @@ import {
 export default [
   createTicketHandler,
 
-  // Normal Tickets panel
+  // Normal Tickets
   normalTicketCreateButton,
 
-  // Merch Tickets panel
+  // Merch Tickets
   merchTicketCreateButton,
 
   // Existing ticket controls
