@@ -3,17 +3,10 @@ import {
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
-  AttachmentBuilder,
   MessageFlags,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
 } from 'discord.js';
 
-import {
-  createEmbed,
-  successEmbed,
-} from '../utils/embeds.js';
-
+import { createEmbed, successEmbed } from '../utils/embeds.js';
 import {
   createTicket,
   closeTicket,
@@ -21,26 +14,11 @@ import {
   updateTicketPriority,
 } from '../services/ticket.js';
 
-import {
-  getGuildConfig,
-} from '../services/config/guildConfig.js';
-
-import {
-  logTicketEvent,
-} from '../utils/ticket/ticketLogging.js';
-
-import {
-  logger,
-} from '../utils/logger.js';
-
-import {
-  InteractionHelper,
-} from '../utils/interactionHelper.js';
-
-import {
-  checkRateLimit,
-} from '../utils/rateLimiter.js';
-
+import { getGuildConfig } from '../services/config/guildConfig.js';
+import { logTicketEvent } from '../utils/ticket/ticketLogging.js';
+import { logger } from '../utils/logger.js';
+import { InteractionHelper } from '../utils/interactionHelper.js';
+import { checkRateLimit } from '../utils/rateLimiter.js';
 import {
   replyUserError,
   ErrorTypes,
@@ -54,20 +32,8 @@ import {
 
 
 /* ============================================================
-   HELPERS
+   GENERAL HELPERS
    ============================================================ */
-
-function escapeHtml(text) {
-  if (!text) return '';
-
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
 
 async function ensureGuildContext(interaction) {
   if (interaction.inGuild()) {
@@ -85,12 +51,18 @@ async function ensureGuildContext(interaction) {
 }
 
 
+/*
+ * Permission check used by ticket buttons.
+ *
+ * Ticket creators may close their own ticket.
+ * Staff / Manage Channels may manage the ticket.
+ */
 async function assertTicketPermission(
   interaction,
   client,
   actionLabel,
   options = {},
-  timeoutMs = 2500
+  timeoutMs = 5000
 ) {
   const {
     allowTicketCreator = false,
@@ -113,11 +85,10 @@ async function assertTicketPermission(
         )
       );
 
-    context =
-      await Promise.race([
-        contextPromise,
-        timeoutPromise,
-      ]);
+    context = await Promise.race([
+      contextPromise,
+      timeoutPromise,
+    ]);
   } catch (error) {
     if (error.message === 'Timeout') {
       throw createError(
@@ -142,16 +113,14 @@ async function assertTicketPermission(
     );
   }
 
-  const allowed =
-    allowTicketCreator
-      ? context.canCloseTicket
-      : context.canManageTicket;
+  const allowed = allowTicketCreator
+    ? context.canCloseTicket
+    : context.canManageTicket;
 
   if (!allowed) {
-    const permissionMessage =
-      allowTicketCreator
-        ? 'You must have **Manage Channels**, the configured **Ticket Staff Role**, or be the **ticket creator**.'
-        : 'You must have **Manage Channels** or the configured **Ticket Staff Role**.';
+    const permissionMessage = allowTicketCreator
+      ? 'You must have **Manage Channels**, the configured **Ticket Staff Role**, or be the **ticket creator**.'
+      : 'You must have **Manage Channels** or the configured **Ticket Staff Role**.';
 
     throw createError(
       'Ticket permission denied',
@@ -190,16 +159,14 @@ async function ensureTicketPermission(
     return null;
   }
 
-  const allowed =
-    allowTicketCreator
-      ? context.canCloseTicket
-      : context.canManageTicket;
+  const allowed = allowTicketCreator
+    ? context.canCloseTicket
+    : context.canManageTicket;
 
   if (!allowed) {
-    const permissionMessage =
-      allowTicketCreator
-        ? 'You must have **Manage Channels**, the configured **Ticket Staff Role**, or be the **ticket creator**.'
-        : 'You must have **Manage Channels** or the configured **Ticket Staff Role**.';
+    const permissionMessage = allowTicketCreator
+      ? 'You must have **Manage Channels**, the configured **Ticket Staff Role**, or be the **ticket creator**.'
+      : 'You must have **Manage Channels** or the configured **Ticket Staff Role**.';
 
     await replyUserError(interaction, {
       type: ErrorTypes.PERMISSION,
@@ -258,8 +225,7 @@ const createTicketHandler = {
 
       const {
         getUserTicketCount,
-      } =
-        await import('../services/ticket.js');
+      } = await import('../services/ticket.js');
 
       const currentTicketCount =
         await getUserTicketCount(
@@ -294,9 +260,7 @@ const createTicketHandler = {
 
       const reasonInput =
         new TextInputBuilder()
-          .setCustomId(
-            'reason'
-          )
+          .setCustomId('reason')
           .setLabel(
             'Why are you creating this ticket?'
           )
@@ -306,21 +270,14 @@ const createTicketHandler = {
           .setPlaceholder(
             'Describe your issue...'
           )
-          .setRequired(
-            true
-          )
-          .setMaxLength(
-            1000
-          );
+          .setRequired(true)
+          .setMaxLength(1000);
 
-      const actionRow =
+      modal.addComponents(
         new ActionRowBuilder()
           .addComponents(
             reasonInput
-          );
-
-      modal.addComponents(
-        actionRow
+          )
       );
 
       await interaction.showModal(
@@ -357,10 +314,7 @@ const createTicketHandler = {
 const createTicketModalHandler = {
   name: 'create_ticket_modal',
 
-  async execute(
-    interaction,
-    client
-  ) {
+  async execute(interaction, client) {
     try {
       if (!(await ensureGuildContext(interaction))) {
         return;
@@ -392,11 +346,10 @@ const createTicketModalHandler = {
         );
 
       const categoryId =
-        config.ticketCategoryId || null;
+        config.ticketCategoryId ||
+        null;
 
-      const {
-        channel,
-      } =
+      const { channel } =
         await createTicket(
           interaction.guild,
           interaction.member,
@@ -417,7 +370,7 @@ const createTicketModalHandler = {
         interaction,
         error,
         {
-          type: 'button',
+          type: 'modal',
           handler: 'ticket',
           customId:
             interaction.customId,
@@ -435,15 +388,17 @@ const createTicketModalHandler = {
 const closeTicketHandler = {
   name: 'ticket_close',
 
-  async execute(
-    interaction,
-    client
-  ) {
+  async execute(interaction, client) {
     try {
       if (!(await ensureGuildContext(interaction))) {
         return;
       }
 
+      /*
+       * IMPORTANT:
+       * Do NOT defer this interaction.
+       * Discord requires showModal() to be the first response.
+       */
       await assertTicketPermission(
         interaction,
         client,
@@ -451,7 +406,7 @@ const closeTicketHandler = {
         {
           allowTicketCreator: true,
         },
-        2000
+        5000
       );
 
       const modal =
@@ -465,24 +420,18 @@ const closeTicketHandler = {
 
       const reasonInput =
         new TextInputBuilder()
-          .setCustomId(
-            'reason'
-          )
+          .setCustomId('reason')
           .setLabel(
-            'Reason for closing (optional)'
+            'Reason for closing'
           )
           .setStyle(
             TextInputStyle.Paragraph
           )
           .setPlaceholder(
-            'Add an optional reason for closing this ticket...'
+            'Enter a reason for closing this ticket...'
           )
-          .setRequired(
-            false
-          )
-          .setMaxLength(
-            1000
-          );
+          .setRequired(false)
+          .setMaxLength(1000);
 
       modal.addComponents(
         new ActionRowBuilder()
@@ -496,7 +445,7 @@ const closeTicketHandler = {
       );
     } catch (error) {
       logger.error(
-        'Error opening close ticket modal:',
+        'Error opening close ticket form:',
         error
       );
 
@@ -508,12 +457,12 @@ const closeTicketHandler = {
           interaction,
           {
             type:
-              error?.type ||
+              error?.context?.type ||
               ErrorTypes.UNKNOWN,
-
             message:
+              error?.userMessage ||
               error?.message ||
-              'Could not open ticket close form.',
+              'Could not open the ticket close form.',
           }
         );
       }
@@ -529,21 +478,16 @@ const closeTicketHandler = {
 const closeTicketModalHandler = {
   name: 'ticket_close_modal',
 
-  async execute(
-    interaction,
-    client
-  ) {
+  async execute(interaction, client) {
     try {
       if (!(await ensureGuildContext(interaction))) {
         return;
       }
 
       /*
-       * IMPORTANT:
-       * Check permissions BEFORE closing the ticket.
-       * Ticket creator is allowed to close their own ticket.
+       * Re-check permissions after the modal
+       * is submitted.
        */
-
       await assertTicketPermission(
         interaction,
         client,
@@ -551,7 +495,7 @@ const closeTicketModalHandler = {
         {
           allowTicketCreator: true,
         },
-        2000
+        5000
       );
 
       const deferSuccess =
@@ -567,18 +511,12 @@ const closeTicketModalHandler = {
         return;
       }
 
-      let providedReason = '';
-
-      try {
-        providedReason =
-          interaction.fields
-            .getTextInputValue(
-              'reason'
-            )
-            ?.trim() || '';
-      } catch {
-        providedReason = '';
-      }
+      const providedReason =
+        interaction.fields
+          .getTextInputValue(
+            'reason'
+          )
+          ?.trim();
 
       const reason =
         providedReason ||
@@ -594,7 +532,7 @@ const closeTicketModalHandler = {
         embeds: [
           successEmbed(
             'Ticket Closed',
-            'This ticket has been closed.'
+            'This ticket has been closed successfully.'
           ),
         ],
       });
@@ -612,25 +550,21 @@ const closeTicketModalHandler = {
           interaction,
           {
             type:
-              error?.type ||
+              error?.context?.type ||
               ErrorTypes.UNKNOWN,
-
             message:
+              error?.userMessage ||
               error?.message ||
               'An error occurred while closing the ticket.',
           }
         );
-      } else if (
-        interaction.deferred
-      ) {
+      } else {
         await replyUserError(
           interaction,
           {
-            type:
-              error?.type ||
-              ErrorTypes.UNKNOWN,
-
+            type: ErrorTypes.UNKNOWN,
             message:
+              error?.userMessage ||
               error?.message ||
               'An error occurred while closing the ticket.',
           }
@@ -648,10 +582,7 @@ const closeTicketModalHandler = {
 const claimTicketHandler = {
   name: 'ticket_claim',
 
-  async execute(
-    interaction,
-    client
-  ) {
+  async execute(interaction, client) {
     try {
       if (!(await ensureGuildContext(interaction))) {
         return;
@@ -662,7 +593,7 @@ const claimTicketHandler = {
         client,
         'claim tickets',
         {},
-        2000
+        5000
       );
 
       const deferSuccess =
@@ -704,27 +635,18 @@ const claimTicketHandler = {
         await replyUserError(
           interaction,
           {
-            type:
-              error?.type ||
-              ErrorTypes.UNKNOWN,
-
+            type: ErrorTypes.UNKNOWN,
             message:
-              error?.message ||
               'An error occurred while claiming the ticket.',
           }
         );
-      } else if (
-        interaction.deferred
-      ) {
+      } else {
         await replyUserError(
           interaction,
           {
-            type:
-              error?.type ||
-              ErrorTypes.UNKNOWN,
-
+            type: ErrorTypes.UNKNOWN,
             message:
-              error?.message ||
+              error?.userMessage ||
               'An error occurred while claiming the ticket.',
           }
         );
@@ -735,16 +657,32 @@ const claimTicketHandler = {
 
 
 /* ============================================================
-   PRIORITY MENU
+   PRIORITY MENU BUTTON
    ============================================================ */
 
-const priorityMenuHandler = {
+/*
+ * This is the missing handler in the current repo.
+ *
+ * Normal + Merch ticket files create:
+ *
+ * ticket_priority_menu
+ *
+ * but the current button registry does not contain
+ * a handler for it.
+ *
+ * This button opens a form where staff can choose:
+ *
+ * urgent
+ * high
+ * medium
+ * low
+ * none
+ */
+
+const priorityMenuTicketHandler = {
   name: 'ticket_priority_menu',
 
-  async execute(
-    interaction,
-    client
-  ) {
+  async execute(interaction, client) {
     try {
       if (!(await ensureGuildContext(interaction))) {
         return;
@@ -755,106 +693,48 @@ const priorityMenuHandler = {
         client,
         'change ticket priority',
         {},
-        2000
+        5000
       );
 
-      const menu =
-        new StringSelectMenuBuilder()
+      const modal =
+        new ModalBuilder()
           .setCustomId(
-            'ticket_priority'
+            'ticket_priority_modal'
           )
-          .setPlaceholder(
-            'Select a ticket priority...'
-          )
-          .addOptions(
-            new StringSelectMenuOptionBuilder()
-              .setLabel(
-                'None'
-              )
-              .setDescription(
-                'Remove the current priority'
-              )
-              .setValue(
-                'none'
-              )
-              .setEmoji(
-                '⚪'
-              ),
-
-            new StringSelectMenuOptionBuilder()
-              .setLabel(
-                'Low'
-              )
-              .setDescription(
-                'Low priority'
-              )
-              .setValue(
-                'low'
-              )
-              .setEmoji(
-                '🟢'
-              ),
-
-            new StringSelectMenuOptionBuilder()
-              .setLabel(
-                'Medium'
-              )
-              .setDescription(
-                'Medium priority'
-              )
-              .setValue(
-                'medium'
-              )
-              .setEmoji(
-                '🟡'
-              ),
-
-            new StringSelectMenuOptionBuilder()
-              .setLabel(
-                'High'
-              )
-              .setDescription(
-                'High priority'
-              )
-              .setValue(
-                'high'
-              )
-              .setEmoji(
-                '🔴'
-              ),
-
-            new StringSelectMenuOptionBuilder()
-              .setLabel(
-                'Urgent'
-              )
-              .setDescription(
-                'Urgent priority'
-              )
-              .setValue(
-                'urgent'
-              )
-              .setEmoji(
-                '🚨'
-              )
+          .setTitle(
+            'Set Ticket Priority'
           );
 
-      await interaction.reply({
-        content:
-          '💼 Select the new priority for this ticket:',
+      const priorityInput =
+        new TextInputBuilder()
+          .setCustomId(
+            'priority'
+          )
+          .setLabel(
+            'Priority level'
+          )
+          .setStyle(
+            TextInputStyle.Short
+          )
+          .setPlaceholder(
+            'urgent / high / medium / low / none'
+          )
+          .setRequired(true)
+          .setMaxLength(10);
 
-        components: [
-          new ActionRowBuilder()
-            .addComponents(
-              menu
-            ),
-        ],
+      modal.addComponents(
+        new ActionRowBuilder()
+          .addComponents(
+            priorityInput
+          )
+      );
 
-        flags:
-          MessageFlags.Ephemeral,
-      });
+      await interaction.showModal(
+        modal
+      );
     } catch (error) {
       logger.error(
-        'Error opening priority menu:',
+        'Error opening priority form:',
         error
       );
 
@@ -866,12 +746,12 @@ const priorityMenuHandler = {
           interaction,
           {
             type:
-              error?.type ||
+              error?.context?.type ||
               ErrorTypes.UNKNOWN,
-
             message:
+              error?.userMessage ||
               error?.message ||
-              'Could not open the priority menu.',
+              'Could not open the priority form.',
           }
         );
       }
@@ -881,17 +761,13 @@ const priorityMenuHandler = {
 
 
 /* ============================================================
-   PRIORITY SELECTION
+   PRIORITY MODAL
    ============================================================ */
 
-const priorityTicketHandler = {
-  name: 'ticket_priority',
+const priorityModalTicketHandler = {
+  name: 'ticket_priority_modal',
 
-  async execute(
-    interaction,
-    client,
-    args
-  ) {
+  async execute(interaction, client) {
     try {
       if (!(await ensureGuildContext(interaction))) {
         return;
@@ -902,7 +778,7 @@ const priorityTicketHandler = {
         client,
         'change ticket priority',
         {},
-        2000
+        5000
       );
 
       const deferSuccess =
@@ -918,57 +794,63 @@ const priorityTicketHandler = {
         return;
       }
 
-      /*
-       * String select menus provide values through
-       * interaction.values.
-       *
-       * Keep args support as a fallback for older
-       * interaction routing in this bot.
-       */
+      const rawPriority =
+        interaction.fields
+          .getTextInputValue(
+            'priority'
+          )
+          ?.trim()
+          .toLowerCase();
+
+      const aliases = {
+        urgent: 'urgent',
+        emergency: 'urgent',
+        critical: 'urgent',
+
+        high: 'high',
+
+        medium: 'medium',
+        normal: 'medium',
+
+        low: 'low',
+
+        none: 'none',
+        normalnone: 'none',
+        clear: 'none',
+      };
 
       const priority =
-        interaction.isStringSelectMenu?.()
-          ? interaction.values?.[0]
-          : args?.[0];
-
-      if (!priority) {
-        await replyUserError(
-          interaction,
-          {
-            type:
-              ErrorTypes.VALIDATION,
-
-            message:
-              'A priority value is required.',
-          }
-        );
-
-        return;
-      }
+        aliases[rawPriority];
 
       const validPriorities = [
-        'none',
-        'low',
-        'medium',
-        'high',
         'urgent',
+        'high',
+        'medium',
+        'low',
+        'none',
       ];
 
       if (
-        !validPriorities.includes(
-          priority
-        )
+        !priority ||
+        !validPriorities.includes(priority)
       ) {
-        await replyUserError(
-          interaction,
-          {
-            type:
-              ErrorTypes.VALIDATION,
-
-            message:
-              'That is not a valid ticket priority.',
-          }
-        );
+        await interaction.editReply({
+          embeds: [
+            createEmbed({
+              title:
+                'Invalid Priority',
+              description:
+                'Please use one of:\n\n' +
+                '🚨 **urgent**\n' +
+                '🔴 **high**\n' +
+                '🟡 **medium**\n' +
+                '🟢 **low**\n' +
+                '⚪ **none**',
+              color:
+                0xE74C3C,
+            }),
+          ],
+        });
 
         return;
       }
@@ -980,11 +862,11 @@ const priorityTicketHandler = {
       );
 
       const labels = {
-        none: 'None',
-        low: 'Low',
-        medium: 'Medium',
-        high: 'High',
-        urgent: 'Urgent',
+        urgent: '🚨 URGENT',
+        high: '🔴 HIGH',
+        medium: '🟡 MEDIUM',
+        low: '🟢 LOW',
+        none: '⚪ NONE',
       };
 
       await interaction.editReply({
@@ -994,8 +876,132 @@ const priorityTicketHandler = {
             `Ticket priority set to **${labels[priority]}**.`
           ),
         ],
+      });
+    } catch (error) {
+      logger.error(
+        'Error submitting priority form:',
+        error
+      );
 
-        components: [],
+      if (
+        !interaction.replied &&
+        !interaction.deferred
+      ) {
+        await replyUserError(
+          interaction,
+          {
+            type:
+              error?.context?.type ||
+              ErrorTypes.UNKNOWN,
+            message:
+              error?.userMessage ||
+              error?.message ||
+              'An error occurred while updating the priority.',
+          }
+        );
+      } else {
+        await replyUserError(
+          interaction,
+          {
+            type: ErrorTypes.UNKNOWN,
+            message:
+              error?.userMessage ||
+              error?.message ||
+              'An error occurred while updating the priority.',
+          }
+        );
+      }
+    }
+  },
+};
+
+
+/* ============================================================
+   OLD / DIRECT PRIORITY BUTTON SUPPORT
+   ============================================================ */
+
+/*
+ * Keeps existing buttons such as:
+ *
+ * ticket_priority:low
+ * ticket_priority:high
+ *
+ * working too.
+ */
+
+const priorityTicketHandler = {
+  name: 'ticket_priority',
+
+  async execute(interaction, client, args) {
+    try {
+      if (!(await ensureGuildContext(interaction))) {
+        return;
+      }
+
+      await assertTicketPermission(
+        interaction,
+        client,
+        'change ticket priority',
+        {},
+        5000
+      );
+
+      const priority =
+        args?.[0]
+          ?.trim()
+          ?.toLowerCase();
+
+      const validPriorities = [
+        'urgent',
+        'high',
+        'medium',
+        'low',
+        'none',
+      ];
+
+      if (
+        !priority ||
+        !validPriorities.includes(priority)
+      ) {
+        await replyUserError(
+          interaction,
+          {
+            type:
+              ErrorTypes.VALIDATION,
+            message:
+              'Invalid priority value.',
+          }
+        );
+
+        return;
+      }
+
+      const deferSuccess =
+        await InteractionHelper.safeDefer(
+          interaction,
+          {
+            flags:
+              MessageFlags.Ephemeral,
+          }
+        );
+
+      if (!deferSuccess) {
+        return;
+      }
+
+      await updateTicketPriority(
+        interaction.channel,
+        priority,
+        interaction.user
+      );
+
+      await interaction.editReply({
+        embeds: [
+          successEmbed(
+            'Priority Updated',
+            `Ticket priority set to **${priority.toUpperCase()}**.`
+          ),
+        ],
       });
     } catch (error) {
       logger.error(
@@ -1011,26 +1017,21 @@ const priorityTicketHandler = {
           interaction,
           {
             type:
-              error?.type ||
+              error?.context?.type ||
               ErrorTypes.UNKNOWN,
-
             message:
+              error?.userMessage ||
               error?.message ||
               'An error occurred while updating the priority.',
           }
         );
-      } else if (
-        interaction.deferred
-      ) {
+      } else {
         await replyUserError(
           interaction,
           {
-            type:
-              error?.type ||
-              ErrorTypes.UNKNOWN,
-
+            type: ErrorTypes.UNKNOWN,
             message:
-              error?.message ||
+              error?.userMessage ||
               'An error occurred while updating the priority.',
           }
         );
@@ -1047,10 +1048,7 @@ const priorityTicketHandler = {
 const pinTicketHandler = {
   name: 'ticket_pin',
 
-  async execute(
-    interaction,
-    client
-  ) {
+  async execute(interaction, client) {
     try {
       if (!(await ensureGuildContext(interaction))) {
         return;
@@ -1061,7 +1059,7 @@ const pinTicketHandler = {
         client,
         'pin tickets',
         {},
-        2000
+        5000
       );
 
       const deferSuccess =
@@ -1089,7 +1087,6 @@ const pinTicketHandler = {
           {
             type:
               ErrorTypes.UNKNOWN,
-
             message:
               'This ticket is not in a category.',
           }
@@ -1098,24 +1095,20 @@ const pinTicketHandler = {
         return;
       }
 
-      const hasPingEmoji =
-        channel.name.startsWith(
-          '📌'
-        );
+      const hasPinEmoji =
+        channel.name.startsWith('📌');
 
-      if (hasPingEmoji) {
+      if (hasPinEmoji) {
         const newName =
-          channel.name.replace(
-            /^📌\s*/,
-            ''
-          );
+          channel.name
+            .replace(
+              /^📌\s*/,
+              ''
+            );
 
         await channel.edit({
-          name:
-            newName,
-
-          position:
-            999,
+          name: newName,
+          position: 999,
         });
 
         await interaction.editReply({
@@ -1123,42 +1116,20 @@ const pinTicketHandler = {
             createEmbed({
               title:
                 '📌 Ticket Unpinned',
-
               description:
                 'This ticket has been unpinned and moved back to normal position.',
-
               color:
                 0x95A5A6,
             }),
           ],
         });
-
-        logger.info(
-          'Ticket unpinned',
-          {
-            guildId:
-              interaction.guildId,
-
-            channelId:
-              channel.id,
-
-            channelName:
-              newName,
-
-            userId:
-              interaction.user.id,
-          }
-        );
       } else {
         const pinnedName =
           `📌 ${channel.name}`;
 
         await channel.edit({
-          name:
-            pinnedName,
-
-          position:
-            0,
+          name: pinnedName,
+          position: 0,
         });
 
         await interaction.editReply({
@@ -1166,32 +1137,13 @@ const pinTicketHandler = {
             createEmbed({
               title:
                 '📌 Ticket Pinned',
-
               description:
                 'This ticket has been pinned to the top of the category.',
-
               color:
-                0x3498db,
+                0x3498DB,
             }),
           ],
         });
-
-        logger.info(
-          'Ticket pinned',
-          {
-            guildId:
-              interaction.guildId,
-
-            channelId:
-              channel.id,
-
-            channelName:
-              pinnedName,
-
-            userId:
-              interaction.user.id,
-          }
-        );
       }
 
       await logTicketEvent({
@@ -1203,7 +1155,7 @@ const pinTicketHandler = {
 
         event: {
           type:
-            hasPingEmoji
+            hasPinEmoji
               ? 'unpin'
               : 'pin',
 
@@ -1224,10 +1176,10 @@ const pinTicketHandler = {
 
           metadata: {
             isPinned:
-              !hasPingEmoji,
+              !hasPinEmoji,
 
             newChannelName:
-              hasPingEmoji
+              hasPinEmoji
                 ? channel.name.replace(
                     /^📌\s*/,
                     ''
@@ -1251,20 +1203,6 @@ const pinTicketHandler = {
           {
             type:
               ErrorTypes.UNKNOWN,
-
-            message:
-              'Failed to pin/unpin the ticket.',
-          }
-        );
-      } else if (
-        interaction.deferred
-      ) {
-        await replyUserError(
-          interaction,
-          {
-            type:
-              ErrorTypes.UNKNOWN,
-
             message:
               'Failed to pin/unpin the ticket.',
           }
@@ -1282,10 +1220,7 @@ const pinTicketHandler = {
 const unclaimTicketHandler = {
   name: 'ticket_unclaim',
 
-  async execute(
-    interaction,
-    client
-  ) {
+  async execute(interaction, client) {
     try {
       if (!(await ensureGuildContext(interaction))) {
         return;
@@ -1296,7 +1231,7 @@ const unclaimTicketHandler = {
         client,
         'unclaim tickets',
         {},
-        2000
+        5000
       );
 
       const deferSuccess =
@@ -1314,10 +1249,9 @@ const unclaimTicketHandler = {
 
       const {
         unclaimTicket,
-      } =
-        await import(
-          '../services/ticket.js'
-        );
+      } = await import(
+        '../services/ticket.js'
+      );
 
       await unclaimTicket(
         interaction.channel,
@@ -1347,20 +1281,6 @@ const unclaimTicketHandler = {
           {
             type:
               ErrorTypes.UNKNOWN,
-
-            message:
-              'An error occurred while unclaiming the ticket.',
-          }
-        );
-      } else if (
-        interaction.deferred
-      ) {
-        await replyUserError(
-          interaction,
-          {
-            type:
-              ErrorTypes.UNKNOWN,
-
             message:
               'An error occurred while unclaiming the ticket.',
           }
@@ -1378,10 +1298,7 @@ const unclaimTicketHandler = {
 const reopenTicketHandler = {
   name: 'ticket_reopen',
 
-  async execute(
-    interaction,
-    client
-  ) {
+  async execute(interaction, client) {
     try {
       if (!(await ensureGuildContext(interaction))) {
         return;
@@ -1392,7 +1309,7 @@ const reopenTicketHandler = {
         client,
         'reopen tickets',
         {},
-        2000
+        5000
       );
 
       const deferSuccess =
@@ -1410,35 +1327,31 @@ const reopenTicketHandler = {
 
       const {
         reopenTicket,
-      } =
-        await import(
-          '../services/ticket.js'
-        );
+      } = await import(
+        '../services/ticket.js'
+      );
 
-      const {
-        movedToOpenCategory,
-        openCategoryMoveFailed,
-      } =
+      const result =
         await reopenTicket(
           interaction.channel,
           interaction.member
         );
 
-      let reopenMessage =
+      let message =
         'This ticket has been reopened.';
 
       if (
-        openCategoryMoveFailed
+        result?.openCategoryMoveFailed
       ) {
-        reopenMessage +=
-          ' Note: Could not move the channel back to the open tickets category.';
+        message +=
+          ' Note: The ticket could not be moved back to the open category.';
       }
 
       await interaction.editReply({
         embeds: [
           successEmbed(
             'Ticket Reopened',
-            reopenMessage
+            message
           ),
         ],
       });
@@ -1457,20 +1370,6 @@ const reopenTicketHandler = {
           {
             type:
               ErrorTypes.UNKNOWN,
-
-            message:
-              'An error occurred while reopening the ticket.',
-          }
-        );
-      } else if (
-        interaction.deferred
-      ) {
-        await replyUserError(
-          interaction,
-          {
-            type:
-              ErrorTypes.UNKNOWN,
-
             message:
               'An error occurred while reopening the ticket.',
           }
@@ -1488,10 +1387,7 @@ const reopenTicketHandler = {
 const deleteTicketHandler = {
   name: 'ticket_delete',
 
-  async execute(
-    interaction,
-    client
-  ) {
+  async execute(interaction, client) {
     try {
       if (!(await ensureGuildContext(interaction))) {
         return;
@@ -1502,7 +1398,7 @@ const deleteTicketHandler = {
         client,
         'delete tickets',
         {},
-        2000
+        5000
       );
 
       const deferSuccess =
@@ -1520,10 +1416,9 @@ const deleteTicketHandler = {
 
       const {
         deleteTicket,
-      } =
-        await import(
-          '../services/ticket.js'
-        );
+      } = await import(
+        '../services/ticket.js'
+      );
 
       await deleteTicket(
         interaction.channel,
@@ -1553,20 +1448,6 @@ const deleteTicketHandler = {
           {
             type:
               ErrorTypes.UNKNOWN,
-
-            message:
-              'An error occurred while deleting the ticket.',
-          }
-        );
-      } else if (
-        interaction.deferred
-      ) {
-        await replyUserError(
-          interaction,
-          {
-            type:
-              ErrorTypes.UNKNOWN,
-
             message:
               'An error occurred while deleting the ticket.',
           }
@@ -1586,14 +1467,13 @@ export default createTicketHandler;
 export {
   createTicketModalHandler,
 
-  closeTicketModalHandler,
-
   closeTicketHandler,
+  closeTicketModalHandler,
 
   claimTicketHandler,
 
-  priorityMenuHandler,
-
+  priorityMenuTicketHandler,
+  priorityModalTicketHandler,
   priorityTicketHandler,
 
   pinTicketHandler,
