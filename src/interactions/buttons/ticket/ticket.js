@@ -1,6 +1,7 @@
 import createTicketHandler, {
   closeTicketHandler,
   claimTicketHandler,
+  priorityMenuHandler,
   priorityTicketHandler,
   pinTicketHandler,
   unclaimTicketHandler,
@@ -28,7 +29,11 @@ export default [
   // Existing ticket controls
   closeTicketHandler,
   claimTicketHandler,
+
+  // Priority button + priority selection
+  priorityMenuHandler,
   priorityTicketHandler,
+
   pinTicketHandler,
   unclaimTicketHandler,
   reopenTicketHandler,
