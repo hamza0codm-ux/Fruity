@@ -545,7 +545,7 @@ function buildLeaderboardEmbed(
         text:
           `Page ${
             safePage + 1
-          }/${totalPages} • Normal + Merch tickets`,
+          }/${totalPages} • All Tickets`,
       })
       .setTimestamp(),
 
