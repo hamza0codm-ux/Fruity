@@ -36,7 +36,7 @@ export default async function loadEvents(client) {
                 logger.info(`✅ Registered once event: ${event.name}`);
             } else {
                 client.on(event.name, safeExecute);
-                logger.info(`✅ Registered event: ${event.name}`);
+             logger.info(`🔥 EVENT REGISTERED: ${event.name}`);
             }
         } catch (error) {
             logger.error(`Error loading event ${file}:`, error);
