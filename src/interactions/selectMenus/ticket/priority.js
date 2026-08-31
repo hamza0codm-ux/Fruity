@@ -1,18 +1,13 @@
 import {
+    ActionRowBuilder,
+    StringSelectMenuBuilder,
+    StringSelectMenuOptionBuilder,
     MessageFlags,
 } from 'discord.js';
 
 import {
     getTicketPermissionContext,
 } from '../../../utils/ticket/ticketPermissions.js';
-
-import {
-    updateTicketPriority,
-} from '../../../services/ticket.js';
-
-import {
-    successEmbed,
-} from '../../../utils/embeds.js';
 
 import {
     replyUserError,
@@ -24,20 +19,61 @@ import {
 } from '../../../utils/logger.js';
 
 
-const PRIORITY_LABELS = {
-    none: '⚪ NONE',
-    low: '🟢 LOW',
-    medium: '🟡 MEDIUM',
-    high: '🔴 HIGH',
-    urgent: '🚨 URGENT',
-};
+const PRIORITY_OPTIONS = [
+    {
+        label: '⚪ None',
+        description: 'Remove the current ticket priority',
+        value: 'none',
+    },
+    {
+        label: '🟢 Low',
+        description: 'Low priority ticket',
+        value: 'low',
+    },
+    {
+        label: '🟡 Medium',
+        description: 'Normal priority ticket',
+        value: 'medium',
+    },
+    {
+        label: '🔴 High',
+        description: 'High priority ticket',
+        value: 'high',
+    },
+    {
+        label: '🚨 Urgent',
+        description: 'Critical ticket requiring immediate attention',
+        value: 'urgent',
+    },
+];
+
+
+function buildPriorityMenu() {
+    const menu = new StringSelectMenuBuilder()
+        .setCustomId('ticket_priority_select')
+        .setPlaceholder('Select ticket priority...')
+        .addOptions(
+            PRIORITY_OPTIONS.map((option) =>
+                new StringSelectMenuOptionBuilder()
+                    .setLabel(option.label)
+                    .setDescription(option.description)
+                    .setValue(option.value)
+            )
+        );
+
+    return new ActionRowBuilder().addComponents(menu);
+}
 
 
 export default {
-    name: 'ticket_priority_select',
+    name: 'ticket_priority',
 
     async execute(interaction, client) {
         try {
+            if (!interaction.isButton()) {
+                return;
+            }
+
             if (!interaction.inGuild()) {
                 return;
             }
@@ -68,47 +104,27 @@ export default {
                 return;
             }
 
-            const priority =
-                interaction.values?.[0];
-
-            const validPriorities = [
-                'none',
-                'low',
-                'medium',
-                'high',
-                'urgent',
-            ];
-
-            if (
-                !validPriorities.includes(
-                    priority
-                )
-            ) {
-                await replyUserError(interaction, {
-                    type: ErrorTypes.VALIDATION,
-                    message:
-                        'Invalid priority selected.',
-                });
-
-                return;
-            }
-
-            await updateTicketPriority(
-                interaction.channel,
-                priority,
-                interaction.user
-            );
-
-            await interaction.update({
+            await interaction.reply({
                 content:
-                    `### ✅ Priority Updated\nTicket priority has been set to **${PRIORITY_LABELS[priority]}**.`,
-                components: [],
-                embeds: [],
+                    '### 🎯 Ticket Priority\nSelect the priority you want to set for this ticket.',
+                components: [
+                    buildPriorityMenu(),
+                ],
+                flags: MessageFlags.Ephemeral,
             });
+
+            logger.info(
+                'Ticket priority menu opened',
+                {
+                    guildId: interaction.guildId,
+                    channelId: interaction.channelId,
+                    userId: interaction.user.id,
+                }
+            );
 
         } catch (error) {
             logger.error(
-                'Error selecting ticket priority:',
+                'Error opening ticket priority menu:',
                 error
             );
 
@@ -119,9 +135,8 @@ export default {
                 await replyUserError(interaction, {
                     type: ErrorTypes.UNKNOWN,
                     message:
-                        error?.userMessage ||
-                        'An error occurred while updating ticket priority.',
-                });
+                        'An error occurred while opening the priority menu.',
+                }).catch(() => {});
             }
         }
     },
