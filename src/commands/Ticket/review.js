@@ -32,7 +32,7 @@ const PAGE_SIZE = 8;
 
 /*
 |--------------------------------------------------------------------------
-| HELPERS
+| EMBED HELPERS
 |--------------------------------------------------------------------------
 */
 
@@ -46,32 +46,45 @@ function getEmbedText(embed) {
       field.name,
       field.value,
     ]),
+    embed.author?.name,
+    embed.footer?.text,
   ]
     .filter(Boolean)
     .join(' ');
 }
 
-function getField(embed, name) {
-  if (!embed) return null;
+function getField(embed, fieldName) {
+  if (!embed?.fields) return null;
 
-  const target = String(name)
+  const wanted = String(fieldName)
     .toLowerCase()
     .trim();
 
-  const field = (embed.fields || []).find(
-    f =>
-      String(f.name || '')
-        .toLowerCase()
-        .trim() === target
-  );
+  const field = embed.fields.find(field => {
+    return String(field.name || '')
+      .toLowerCase()
+      .trim() === wanted;
+  });
 
   return field?.value || null;
 }
+
+/*
+|--------------------------------------------------------------------------
+| USER ID EXTRACTION
+|--------------------------------------------------------------------------
+*/
 
 function extractUserId(value) {
   if (!value) return null;
 
   const text = String(value);
+
+  /*
+   * Discord mention:
+   * <@123>
+   * <@!123>
+   */
 
   const mention = text.match(
     /<@!?(\d{17,20})>/
@@ -81,11 +94,113 @@ function extractUserId(value) {
     return mention[1];
   }
 
-  const id = text.match(
-    /\b\d{17,20}\b/
+  /*
+   * Raw Discord ID.
+   */
+
+  const raw = text.match(
+    /\b(\d{17,20})\b/
   );
 
-  return id?.[0] || null;
+  if (raw) {
+    return raw[1];
+  }
+
+  return null;
+}
+
+/*
+|--------------------------------------------------------------------------
+| CLAIMED STAFF
+|--------------------------------------------------------------------------
+|
+| ticketLogging.js creates:
+|
+| Claimed by
+| <@STAFF_ID>
+|
+| We intentionally check several places because old logs
+| may have slightly different formats.
+|--------------------------------------------------------------------------
+*/
+
+function extractClaimedStaffId(message) {
+  const embed = message?.embeds?.[0];
+
+  if (!embed) return null;
+
+  /*
+   * Exact current field.
+   */
+
+  const claimedBy = getField(
+    embed,
+    'Claimed by'
+  );
+
+  if (claimedBy) {
+    const id = extractUserId(
+      claimedBy
+    );
+
+    if (id) {
+      return id;
+    }
+  }
+
+  /*
+   * Older / alternate field names.
+   */
+
+  for (const field of embed.fields || []) {
+    const name = String(
+      field.name || ''
+    ).toLowerCase();
+
+    if (
+      name.includes('claimed by') ||
+      name.includes('claimed') ||
+      name.includes('claimer')
+    ) {
+      const id = extractUserId(
+        field.value
+      );
+
+      if (id) {
+        return id;
+      }
+    }
+  }
+
+  /*
+   * Search the complete embed.
+   */
+
+  const text = getEmbedText(
+    embed
+  );
+
+  const claimedMatch = text.match(
+    /claimed\s+by[\s:：-]*<@!?(\d{17,20})>/i
+  );
+
+  if (claimedMatch) {
+    return claimedMatch[1];
+  }
+
+  /*
+   * Last fallback: find a mention after "claimed".
+   */
+
+  const fallback = text.match(
+    /claimed[\s\S]{0,100}<@!?(\d{17,20})>/i
+  );
+
+  if (fallback) {
+    return fallback[1];
+  }
+
+  return null;
 }
 
 /*
@@ -99,18 +214,17 @@ function extractTicketNumber(message) {
 
   if (!embed) return null;
 
-  /*
-   * First: Ticket field.
-   */
-
-  const ticketField =
-    getField(embed, 'Ticket');
+  const ticketField = getField(
+    embed,
+    'Ticket'
+  );
 
   if (ticketField) {
-    const match =
-      String(ticketField).match(
-        /#?\s*(\d+)/
-      );
+    const match = String(
+      ticketField
+    ).match(
+      /#?(\d{1,10})\b/
+    );
 
     if (match) {
       return match[1];
@@ -118,133 +232,59 @@ function extractTicketNumber(message) {
   }
 
   /*
-   * Other possible field names.
+   * Check other ticket-related fields.
    */
 
   for (const field of embed.fields || []) {
-    const fieldName =
-      String(field.name || '')
-        .toLowerCase();
+    const name = String(
+      field.name || ''
+    ).toLowerCase();
 
     if (
-      fieldName.includes('ticket') ||
-      fieldName.includes('number') ||
-      fieldName.includes('ticket id')
+      name.includes('ticket') ||
+      name.includes('ticket number') ||
+      name.includes('ticket id')
     ) {
-      const match =
-        String(field.value || '').match(
-          /#?\s*(\d+)/
-        );
+      const value = String(
+        field.value || ''
+      );
+
+      /*
+       * Don't accidentally use a Discord
+       * channel ID as a ticket number.
+       */
+
+      const match = value.match(
+        /#(\d{1,10})\b/
+      );
 
       if (match) {
         return match[1];
       }
-    }
-  }
 
-  /*
-   * Search entire embed.
-   */
+      const simple = value.match(
+        /\b(\d{1,10})\b/
+      );
 
-  const text =
-    getEmbedText(embed);
-
-  const patterns = [
-    /ticket(?:\s*(?:number|id))?\s*#?\s*(\d+)/i,
-    /ticket\s*[:\-]\s*#?\s*(\d+)/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match =
-      text.match(pattern);
-
-    if (match) {
-      return match[1];
-    }
-  }
-
-  return null;
-}
-
-/*
-|--------------------------------------------------------------------------
-| CLAIMED STAFF
-|--------------------------------------------------------------------------
-*/
-
-function extractClaimedStaffId(message) {
-  const embed = message?.embeds?.[0];
-
-  if (!embed) return null;
-
-  /*
-   * Preferred:
-   *
-   * Claimed By
-   * @User
-   */
-
-  const claimedBy =
-    getField(embed, 'Claimed By');
-
-  if (claimedBy) {
-    const id =
-      extractUserId(claimedBy);
-
-    if (id) {
-      return id;
-    }
-  }
-
-  /*
-   * Variations used by older logs.
-   */
-
-  for (const field of embed.fields || []) {
-    const name =
-      String(field.name || '')
-        .toLowerCase()
-        .trim();
-
-    if (
-      name === 'claimed by' ||
-      name.includes('claimed by') ||
-      name.includes('claimer') ||
-      name === 'claimed' ||
-      name.includes('staff')
-    ) {
-      const id =
-        extractUserId(field.value);
-
-      if (id) {
-        return id;
+      if (simple) {
+        return simple[1];
       }
     }
   }
 
   /*
-   * Search entire embed.
+   * Search title/description.
    */
 
-  const text =
-    getEmbedText(embed);
+  const text = getEmbedText(
+    embed
+  );
 
-  const patterns = [
-    /claimed\s+by\s*[:\-]?\s*<@!?(\d{17,20})>/i,
-    /claimed\s*[:\-]?\s*<@!?(\d{17,20})>/i,
-    /staff\s*[:\-]?\s*<@!?(\d{17,20})>/i,
-  ];
+  const match = text.match(
+    /ticket(?:\s*(?:number|no|id))?\s*#?\s*(\d{1,10})\b/i
+  );
 
-  for (const pattern of patterns) {
-    const match =
-      text.match(pattern);
-
-    if (match) {
-      return match[1];
-    }
-  }
-
-  return null;
+  return match?.[1] || null;
 }
 
 /*
@@ -258,54 +298,60 @@ function extractRating(message) {
 
   if (!embed) return null;
 
-  /*
-   * Rating field.
-   */
-
-  const ratingField =
-    getField(embed, 'Rating');
+  const ratingField = getField(
+    embed,
+    'Rating'
+  );
 
   if (ratingField) {
-    const value =
-      String(ratingField);
+    const stars = (
+      String(ratingField).match(
+        /⭐/g
+      ) || []
+    ).length;
 
-    const stars =
-      (value.match(/⭐/g) || []).length;
-
-    if (stars >= 1 && stars <= 5) {
+    if (
+      stars >= 1 &&
+      stars <= 5
+    ) {
       return stars;
     }
 
-    const numeric =
-      value.match(
-        /\b([1-5])(?:\s*\/\s*5)?\b/
-      );
+    const numeric = String(
+      ratingField
+    ).match(
+      /\b([1-5])(?:\s*\/\s*5)?\b/
+    );
 
     if (numeric) {
-      return Number(numeric[1]);
+      return Number(
+        numeric[1]
+      );
     }
   }
 
-  /*
-   * Search entire embed.
-   */
+  const text = getEmbedText(
+    embed
+  );
 
-  const text =
-    getEmbedText(embed);
-
-  const numeric =
-    text.match(
-      /rating\s*[:\-]?\s*([1-5])(?:\s*\/\s*5)?/i
-    );
+  const numeric = text.match(
+    /rating\s*[:\-]?\s*([1-5])(?:\s*\/\s*5)?/i
+  );
 
   if (numeric) {
-    return Number(numeric[1]);
+    return Number(
+      numeric[1]
+    );
   }
 
-  const stars =
-    (text.match(/⭐/g) || []).length;
+  const stars = (
+    text.match(/⭐/g) || []
+  ).length;
 
-  if (stars >= 1 && stars <= 5) {
+  if (
+    stars >= 1 &&
+    stars <= 5
+  ) {
     return stars;
   }
 
@@ -321,7 +367,7 @@ function extractRating(message) {
 async function fetchAllMessages(channel) {
   const messages = [];
 
-  let before = null;
+  let before;
 
   while (true) {
     const batch =
@@ -357,7 +403,7 @@ async function fetchAllMessages(channel) {
 
 /*
 |--------------------------------------------------------------------------
-| STATS OBJECT
+| STAFF STATS
 |--------------------------------------------------------------------------
 */
 
@@ -381,41 +427,114 @@ function createStats(userId) {
 
 /*
 |--------------------------------------------------------------------------
+| DETECT CLAIM EVENT
+|--------------------------------------------------------------------------
+|
+| IMPORTANT:
+|
+| We do NOT require the title to be exactly
+| "Ticket Claimed".
+|
+| This supports:
+|
+| Ticket Claimed
+| 🎫 Ticket Claimed
+| Ticket claimed
+| etc.
+|
+| But "Ticket Unclaimed" is explicitly ignored.
+|--------------------------------------------------------------------------
+*/
+
+function isClaimLog(message) {
+  const embed =
+    message?.embeds?.[0];
+
+  if (!embed) {
+    return false;
+  }
+
+  const title =
+    String(
+      embed.title || ''
+    )
+      .toLowerCase()
+      .trim();
+
+  /*
+   * Never count unclaim logs.
+   */
+
+  if (
+    title.includes('unclaim')
+  ) {
+    return false;
+  }
+
+  /*
+   * Title contains "claim".
+   */
+
+  if (
+    title.includes('claim')
+  ) {
+    return true;
+  }
+
+  /*
+   * Even if the title changed,
+   * the current logger has a
+   * "Claimed by" field.
+   */
+
+  const claimedBy =
+    getField(
+      embed,
+      'Claimed by'
+    );
+
+  if (claimedBy) {
+    return Boolean(
+      extractUserId(
+        claimedBy
+      )
+    );
+  }
+
+  return false;
+}
+
+/*
+|--------------------------------------------------------------------------
 | COLLECT STATISTICS
 |--------------------------------------------------------------------------
 */
 
 async function collectStatistics(guild) {
-  const staffStats = new Map();
+  const staffStats =
+    new Map();
 
-  /*
-   * Claims:
-   *
-   * Normal:123
-   * Merch:123
-   */
+  const claims =
+    new Map();
 
-  const claims = new Map();
-
-  /*
-   * Reviews:
-   *
-   * Normal:123
-   * Merch:123
-   */
-
-  const reviews = new Map();
+  const reviews =
+    new Map();
 
   const sources = [
     {
       name: 'Normal',
-      ticketLog: NORMAL.ticketLog,
-      reviewLog: NORMAL.reviewLog,
+      ticketLog:
+        NORMAL.ticketLog,
+      reviewLog:
+        NORMAL.reviewLog,
     },
+
     {
       name: 'Merch',
-      ticketLog: MERCH.ticketLog,
-      reviewLog: MERCH.reviewLog,
+      ticketLog:
+        MERCH.ticketLog,
+      reviewLog:
+        MERCH.reviewLog,
     },
   ];
 
@@ -434,21 +553,25 @@ async function collectStatistics(guild) {
     if (!channel) {
       channel =
         await guild.channels
-          .fetch(source.ticketLog)
+          .fetch(
+            source.ticketLog
+          )
           .catch(() => null);
     }
 
     if (!channel) {
       console.error(
-        `[Review Stats] Cannot find ${source.name} ticket log ${source.ticketLog}`
+        `[Review Stats] ${source.name} ticket log channel not found: ${source.ticketLog}`
       );
+
       continue;
     }
 
     if (!channel.isTextBased()) {
       console.error(
-        `[Review Stats] ${source.name} ticket log is not text based`
+        `[Review Stats] ${source.name} ticket log is not text based.`
       );
+
       continue;
     }
 
@@ -456,12 +579,15 @@ async function collectStatistics(guild) {
 
     try {
       messages =
-        await fetchAllMessages(channel);
+        await fetchAllMessages(
+          channel
+        );
     } catch (error) {
       console.error(
-        `[Review Stats] Failed to read ${source.name} ticket log:`,
+        `[Review Stats] Failed reading ${source.name} ticket logs:`,
         error
       );
+
       continue;
     }
 
@@ -469,57 +595,52 @@ async function collectStatistics(guild) {
       `[Review Stats] ${source.name} ticket log: ${messages.length} messages`
     );
 
+    let claimCount = 0;
+
     for (const message of messages) {
-      const embed =
-        message.embeds?.[0];
-
-      if (!embed) {
-        continue;
-      }
-
-      const title =
-        String(embed.title || '')
-          .trim()
-          .toLowerCase();
-
-      /*
-       * ONLY actual claims.
-       */
-
-      if (title !== 'ticket claimed') {
+      if (
+        !isClaimLog(
+          message
+        )
+      ) {
         continue;
       }
 
       const staffId =
-        extractClaimedStaffId(message);
+        extractClaimedStaffId(
+          message
+        );
 
       if (!staffId) {
         console.warn(
-          `[Review Stats] Claim found but staff ID could not be extracted. Message ${message.id}`
+          `[Review Stats] Claim log found but staff ID could not be detected. Message ${message.id}`
         );
+
         continue;
       }
 
       const ticketNumber =
-        extractTicketNumber(message);
+        extractTicketNumber(
+          message
+        );
 
       /*
-       * IMPORTANT:
+       * Each actual claim log counts as one claim.
        *
-       * Even if ticket number is missing,
-       * the claim is STILL counted.
+       * If there is no ticket number, use the
+       * message ID so the claim is still counted.
        */
 
       const claimKey =
         ticketNumber
-          ? `${source.name}:${ticketNumber}`
+          ? `${source.name}:ticket:${ticketNumber}`
           : `${source.name}:message:${message.id}`;
 
-      /*
-       * Prevent duplicate counting.
-       */
-
-      if (claims.has(claimKey)) {
+      if (
+        claims.has(
+          claimKey
+        )
+      ) {
         continue;
       }
 
@@ -528,15 +649,17 @@ async function collectStatistics(guild) {
         {
           staffId,
           ticketNumber,
-          source: source.name,
-          messageId: message.id,
+          source:
+            source.name,
         }
       );
 
-      console.log(
-        `[Review Stats] CLAIM +1 | ${source.name} | Staff ${staffId} | Ticket ${ticketNumber || 'unknown'}`
-      );
+      claimCount++;
     }
+
+    console.log(
+      `[Review Stats] ${source.name}: detected ${claimCount} claim events`
+    );
   }
 
   /*
@@ -554,14 +677,17 @@ async function collectStatistics(guild) {
     if (!channel) {
       channel =
         await guild.channels
-          .fetch(source.reviewLog)
+          .fetch(
+            source.reviewLog
+          )
           .catch(() => null);
     }
 
     if (!channel) {
       console.error(
-        `[Review Stats] Cannot find ${source.name} review log ${source.reviewLog}`
+        `[Review Stats] ${source.name} review log channel not found: ${source.reviewLog}`
       );
+
       continue;
     }
 
@@ -573,12 +699,15 @@ async function collectStatistics(guild) {
 
     try {
       messages =
-        await fetchAllMessages(channel);
+        await fetchAllMessages(
+          channel
+        );
     } catch (error) {
       console.error(
-        `[Review Stats] Failed to read ${source.name} review log:`,
+        `[Review Stats] Failed reading ${source.name} review logs:`,
         error
       );
+
       continue;
     }
 
@@ -588,77 +717,87 @@ async function collectStatistics(guild) {
 
     for (const message of messages) {
       const embed =
-        message.embeds?.[0];
+        message?.embeds?.[0];
 
       if (!embed) {
         continue;
       }
 
       const title =
-        String(embed.title || '')
-          .trim()
-          .toLowerCase();
+        String(
+          embed.title || ''
+        ).toLowerCase();
 
       /*
-       * Accept the current and older
-       * feedback embed titles.
+       * Support:
+       *
+       * ⭐ Feedback Received
+       * Feedback Received
        */
 
       if (
-        title !== 'feedback received' &&
-        title !== '⭐ feedback received' &&
-        !title.includes('feedback received')
+        !title.includes(
+          'feedback received'
+        )
       ) {
         continue;
       }
 
       const ticketNumber =
-        extractTicketNumber(message);
+        extractTicketNumber(
+          message
+        );
 
       const rating =
-        extractRating(message);
-
-      if (!ticketNumber || !rating) {
-        console.warn(
-          `[Review Stats] Review found but ticket/rating could not be extracted. Message ${message.id}`
+        extractRating(
+          message
         );
+
+      if (
+        !ticketNumber ||
+        !rating
+      ) {
         continue;
       }
 
-      const reviewKey =
-        `${source.name}:${ticketNumber}`;
+      const key =
+        `${source.name}:ticket:${ticketNumber}`;
 
-      if (reviews.has(reviewKey)) {
-        continue;
+      if (
+        !reviews.has(
+          key
+        )
+      ) {
+        reviews.set(
+          key,
+          {
+            ticketNumber,
+            rating,
+            source:
+              source.name,
+          }
+        );
       }
-
-      reviews.set(
-        reviewKey,
-        {
-          ticketNumber,
-          rating,
-          source: source.name,
-          messageId: message.id,
-        }
-      );
-
-      console.log(
-        `[Review Stats] REVIEW | ${source.name} | Ticket ${ticketNumber} | ${rating}/5`
-      );
     }
   }
 
   /*
   |--------------------------------------------------------------------------
-  | BUILD STAFF STATS
+  | BUILD STAFF STATISTICS
   |--------------------------------------------------------------------------
   */
 
   for (const claim of claims.values()) {
-    if (!staffStats.has(claim.staffId)) {
+    if (
+      !staffStats.has(
+        claim.staffId
+      )
+    ) {
       staffStats.set(
         claim.staffId,
-        createStats(claim.staffId)
+        createStats(
+          claim.staffId
+        )
       );
     }
 
@@ -668,21 +807,23 @@ async function collectStatistics(guild) {
       );
 
     /*
-     * Every claim = +1.
+     * EVERY CLAIM LOG = +1
      */
 
     stats.claims++;
 
     /*
-     * Match review to ticket.
+     * Match review to ticket where
+     * possible.
      */
 
-    if (claim.ticketNumber) {
-      const reviewKey =
-        `${claim.source}:${claim.ticketNumber}`;
-
+    if (
+      claim.ticketNumber
+    ) {
       const review =
-        reviews.get(reviewKey);
+        reviews.get(
+          `${claim.source}:ticket:${claim.ticketNumber}`
+        );
 
       if (review) {
         stats.reviews++;
@@ -703,13 +844,16 @@ async function collectStatistics(guild) {
   |--------------------------------------------------------------------------
   */
 
-  for (const stats of staffStats.values()) {
-    if (stats.reviews > 0) {
+  for (
+    const stats of
+    staffStats.values()
+  ) {
+    if (
+      stats.reviews > 0
+    ) {
       stats.average =
         stats.totalRating /
         stats.reviews;
-    } else {
-      stats.average = 0;
     }
   }
 
@@ -724,20 +868,23 @@ async function collectStatistics(guild) {
   );
 
   console.log(
-    `[Review Stats] TOTAL CLAIMS: ${claims.size}`
+    `[Review Stats] TOTAL CLAIM EVENTS: ${claims.size}`
   );
 
   console.log(
-    `[Review Stats] TOTAL REVIEWS: ${reviews.size}`
+    `[Review Stats] TOTAL REVIEW EVENTS: ${reviews.size}`
   );
 
   console.log(
-    `[Review Stats] STAFF MEMBERS: ${staffStats.size}`
+    `[Review Stats] STAFF FOUND: ${staffStats.size}`
   );
 
-  for (const stats of staffStats.values()) {
+  for (
+    const stats of
+    staffStats.values()
+  ) {
     console.log(
-      `[Review Stats] ${stats.userId}: ${stats.claims} claims | ${stats.reviews} reviews | ${stats.average.toFixed(2)}/5`
+      `[Review Stats] ${stats.userId} -> ${stats.claims} claims | ${stats.reviews} reviews | ${stats.average.toFixed(2)}/5`
     );
   }
 
@@ -760,20 +907,28 @@ function stars(value) {
   }
 
   const rounded =
-    Math.round(value);
+    Math.max(
+      0,
+      Math.min(
+        5,
+        Math.round(value)
+      )
+    );
 
   return (
-    '⭐'.repeat(rounded) +
+    '⭐'.repeat(
+      rounded
+    ) +
     '☆'.repeat(
-      Math.max(
-        0,
-        5 - rounded
-      )
+      5 - rounded
     )
   );
 }
 
-function percentage(count, total) {
+function percentage(
+  count,
+  total
+) {
   if (!total) {
     return '0%';
   }
@@ -781,6 +936,54 @@ function percentage(count, total) {
   return `${Math.round(
     (count / total) * 100
   )}%`;
+}
+
+/*
+|--------------------------------------------------------------------------
+| FILTER MENU
+|--------------------------------------------------------------------------
+*/
+
+function buildFilterMenu() {
+  return new ActionRowBuilder()
+    .addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(
+          'review_stats_filter'
+        )
+        .setPlaceholder(
+          'Choose a statistics view...'
+        )
+        .addOptions(
+          new StringSelectMenuOptionBuilder()
+            .setLabel(
+              'All Staff'
+            )
+            .setDescription(
+              'View the staff leaderboard'
+            )
+            .setValue(
+              'all_staff'
+            )
+            .setEmoji(
+              '🏆'
+            ),
+
+          new StringSelectMenuOptionBuilder()
+            .setLabel(
+              'One Staff Member'
+            )
+            .setDescription(
+              'View statistics for one staff member'
+            )
+            .setValue(
+              'one_staff'
+            )
+            .setEmoji(
+              '👤'
+            )
+        )
+    );
 }
 
 /*
@@ -798,12 +1001,13 @@ function buildLeaderboard(
     [...stats.values()]
       .filter(
         staff =>
-          staff.claims >= MIN_CLAIMS
+          staff.claims >=
+          MIN_CLAIMS
       )
       .sort(
         (a, b) => {
           /*
-           * Rating first.
+           * Highest rating first.
            */
 
           if (
@@ -817,7 +1021,7 @@ function buildLeaderboard(
           }
 
           /*
-           * Reviews second.
+           * More reviews next.
            */
 
           if (
@@ -831,7 +1035,7 @@ function buildLeaderboard(
           }
 
           /*
-           * Claims third.
+           * More claims next.
            */
 
           return (
@@ -846,17 +1050,17 @@ function buildLeaderboard(
       1,
       Math.ceil(
         eligible.length /
-          PAGE_SIZE
+        PAGE_SIZE
       )
     );
 
   const safePage =
-    Math.min(
-      Math.max(
+    Math.max(
+      0,
+      Math.min(
         page,
-        0
-      ),
-      totalPages - 1
+        totalPages - 1
+      )
     );
 
   const start =
@@ -873,7 +1077,7 @@ function buildLeaderboard(
 
   if (!items.length) {
     lines.push(
-      '❌ No staff members with **5+ claimed tickets** were found.'
+      `❌ No staff members with **${MIN_CLAIMS}+ claimed tickets** were found.`
     );
   }
 
@@ -891,7 +1095,12 @@ function buildLeaderboard(
     const member =
       guild.members.cache.get(
         staff.userId
-      );
+      ) ||
+      await guild.members
+        .fetch(
+          staff.userId
+        )
+        .catch(() => null);
 
     const mention =
       member
@@ -900,11 +1109,17 @@ function buildLeaderboard(
 
     let medal = '';
 
-    if (position === 1) {
+    if (
+      position === 1
+    ) {
       medal = '🥇 ';
-    } else if (position === 2) {
+    } else if (
+      position === 2
+    ) {
       medal = '🥈 ';
-    } else if (position === 3) {
+    } else if (
+      position === 3
+    ) {
       medal = '🥉 ';
     }
 
@@ -915,21 +1130,23 @@ function buildLeaderboard(
 
     lines.push(
       `${medal}**#${position}** ${mention}\n` +
-      `> ⭐ **${ratingText}** ${stars(
-        staff.average
-      )}\n` +
+      `> ⭐ **${ratingText}** ${stars(staff.average)}\n` +
       `> 🎫 **${staff.claims}** claimed • 📝 **${staff.reviews}** reviews`
     );
   }
 
   const embed =
     new EmbedBuilder()
-      .setColor(0xF8D568)
+      .setColor(
+        0xF8D568
+      )
       .setTitle(
         '🏆 Staff Review Leaderboard'
       )
       .setDescription(
-        lines.join('\n\n')
+        lines.join(
+          '\n\n'
+        )
       )
       .addFields({
         name:
@@ -966,8 +1183,12 @@ function paginationRow(
         .setCustomId(
           'review_stats_previous'
         )
-        .setLabel('Previous')
-        .setEmoji('⬅️')
+        .setLabel(
+          'Previous'
+        )
+        .setEmoji(
+          '⬅️'
+        )
         .setStyle(
           ButtonStyle.Secondary
         )
@@ -979,8 +1200,12 @@ function paginationRow(
         .setCustomId(
           'review_stats_next'
         )
-        .setLabel('Next')
-        .setEmoji('➡️')
+        .setLabel(
+          'Next'
+        )
+        .setEmoji(
+          '➡️'
+        )
         .setStyle(
           ButtonStyle.Secondary
         )
@@ -993,8 +1218,12 @@ function paginationRow(
         .setCustomId(
           'review_stats_close'
         )
-        .setLabel('Close')
-        .setEmoji('✖️')
+        .setLabel(
+          'Close'
+        )
+        .setEmoji(
+          '✖️'
+        )
         .setStyle(
           ButtonStyle.Danger
         )
@@ -1015,7 +1244,9 @@ function buildStaffEmbed(
     stats.reviews;
 
   return new EmbedBuilder()
-    .setColor(0xF8D568)
+    .setColor(
+      0xF8D568
+    )
     .setTitle(
       `📊 Review Statistics — ${member.user.username}`
     )
@@ -1034,6 +1265,7 @@ function buildStaffEmbed(
           ),
         inline: true,
       },
+
       {
         name:
           '📝 Reviews',
@@ -1043,19 +1275,17 @@ function buildStaffEmbed(
           ),
         inline: true,
       },
+
       {
         name:
           '⭐ Average Rating',
         value:
           stats.reviews
-            ? `${stats.average.toFixed(
-                2
-              )}/5 ${stars(
-                stats.average
-              )}`
+            ? `${stats.average.toFixed(2)}/5 ${stars(stats.average)}`
             : 'No ratings yet',
         inline: true,
       },
+
       {
         name:
           '⭐ 5 Stars',
@@ -1066,6 +1296,7 @@ function buildStaffEmbed(
           )})`,
         inline: true,
       },
+
       {
         name:
           '⭐ 4 Stars',
@@ -1076,6 +1307,7 @@ function buildStaffEmbed(
           )})`,
         inline: true,
       },
+
       {
         name:
           '⭐ 3 Stars',
@@ -1086,6 +1318,7 @@ function buildStaffEmbed(
           )})`,
         inline: true,
       },
+
       {
         name:
           '⭐ 2 Stars',
@@ -1096,6 +1329,7 @@ function buildStaffEmbed(
           )})`,
         inline: true,
       },
+
       {
         name:
           '⭐ 1 Star',
@@ -1116,100 +1350,6 @@ function buildStaffEmbed(
 
 /*
 |--------------------------------------------------------------------------
-| FILTER MENU
-|--------------------------------------------------------------------------
-*/
-
-function buildFilterMenu() {
-  return new ActionRowBuilder()
-    .addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(
-          'review_stats_filter'
-        )
-        .setPlaceholder(
-          'Choose a statistics view...'
-        )
-        .addOptions(
-          new StringSelectMenuOptionBuilder()
-            .setLabel(
-              'All Staff'
-            )
-            .setDescription(
-              'View the staff leaderboard'
-            )
-            .setValue(
-              'all_staff'
-            )
-            .setEmoji('🏆'),
-
-          new StringSelectMenuOptionBuilder()
-            .setLabel(
-              'One Staff Member'
-            )
-            .setDescription(
-              'View statistics for one staff member'
-            )
-            .setValue(
-              'one_staff'
-            )
-            .setEmoji('👤')
-        )
-    );
-}
-
-/*
-|--------------------------------------------------------------------------
-| STAFF SELECT
-|--------------------------------------------------------------------------
-*/
-
-function buildStaffSelectMenu() {
-  return new ActionRowBuilder()
-    .addComponents(
-      new UserSelectMenuBuilder()
-        .setCustomId(
-          'review_stats_staff'
-        )
-        .setPlaceholder(
-          'Select a staff member...'
-        )
-    );
-}
-
-/*
-|--------------------------------------------------------------------------
-| BACK + CLOSE
-|--------------------------------------------------------------------------
-*/
-
-function buildBackCloseRow() {
-  return new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId(
-          'review_stats_back'
-        )
-        .setLabel('Back')
-        .setEmoji('⬅️')
-        .setStyle(
-          ButtonStyle.Secondary
-        ),
-
-      new ButtonBuilder()
-        .setCustomId(
-          'review_stats_close'
-        )
-        .setLabel('Close')
-        .setEmoji('✖️')
-        .setStyle(
-          ButtonStyle.Danger
-        )
-    );
-}
-
-/*
-|--------------------------------------------------------------------------
 | COMMAND
 |--------------------------------------------------------------------------
 */
@@ -1217,7 +1357,9 @@ function buildBackCloseRow() {
 export default {
   data:
     new SlashCommandBuilder()
-      .setName('review')
+      .setName(
+        'review'
+      )
       .setDescription(
         'View staff review statistics.'
       )
@@ -1227,17 +1369,17 @@ export default {
       .addSubcommand(
         sub =>
           sub
-            .setName('stats')
+            .setName(
+              'stats'
+            )
             .setDescription(
               'View staff review statistics.'
             )
       ),
 
-  async execute(interaction) {
-    /*
-     * Permission check.
-     */
-
+  async execute(
+    interaction
+  ) {
     if (
       !interaction.memberPermissions?.has(
         PermissionFlagsBits.ManageChannels
@@ -1251,18 +1393,10 @@ export default {
       });
     }
 
-    /*
-     * Defer.
-     */
-
     await interaction.deferReply({
       flags:
         MessageFlags.Ephemeral,
     });
-
-    /*
-     * Load statistics.
-     */
 
     let stats;
 
@@ -1279,15 +1413,9 @@ export default {
 
       return interaction.editReply({
         content:
-          '❌ Failed to read the ticket logs. Make sure the bot has **View Channel** and **Read Message History** in both the Normal and Merch log channels.',
-        embeds: [],
-        components: [],
+          '❌ Failed to read the ticket logs. Make sure the bot has **View Channel** and **Read Message History** in the Normal and Merch ticket/review log channels.',
       });
     }
-
-    /*
-     * Initial menu.
-     */
 
     await interaction.editReply({
       content:
@@ -1301,10 +1429,6 @@ export default {
     const message =
       await interaction.fetchReply();
 
-    /*
-     * Component collector.
-     */
-
     const collector =
       message.createMessageComponentCollector({
         time:
@@ -1315,10 +1439,6 @@ export default {
       'collect',
       async component => {
         try {
-          /*
-           * Only command user can interact.
-           */
-
           if (
             component.user.id !==
             interaction.user.id
@@ -1362,7 +1482,7 @@ export default {
                   0
                 );
 
-              await interaction.editReply({
+              return interaction.editReply({
                 content: null,
                 embeds: [
                   result.embed,
@@ -1374,8 +1494,6 @@ export default {
                   ),
                 ],
               });
-
-              return;
             }
 
             /*
@@ -1386,16 +1504,28 @@ export default {
               selected ===
               'one_staff'
             ) {
-              await component.update({
+              const userMenu =
+                new UserSelectMenuBuilder()
+                  .setCustomId(
+                    'review_stats_staff'
+                  )
+                  .setPlaceholder(
+                    'Select a staff member...'
+                  )
+                  .setMinValues(1)
+                  .setMaxValues(1);
+
+              return component.update({
                 content:
                   '**👤 Staff Statistics**\nSelect the staff member:',
                 embeds: [],
                 components: [
-                  buildStaffSelectMenu(),
+                  new ActionRowBuilder()
+                    .addComponents(
+                      userMenu
+                    ),
                 ],
               });
-
-              return;
             }
           }
 
@@ -1418,7 +1548,9 @@ export default {
                 userId
               ) ||
               await interaction.guild.members
-                .fetch(userId)
+                .fetch(
+                  userId
+                )
                 .catch(() => null);
 
             if (!member) {
@@ -1427,44 +1559,102 @@ export default {
                   '❌ Member not found.',
                 embeds: [],
                 components: [
-                  buildBackCloseRow(),
+                  new ActionRowBuilder()
+                    .addComponents(
+                      new ButtonBuilder()
+                        .setCustomId(
+                          'review_stats_back'
+                        )
+                        .setLabel(
+                          'Back'
+                        )
+                        .setEmoji(
+                          '⬅️'
+                        )
+                        .setStyle(
+                          ButtonStyle.Secondary
+                        ),
+
+                      new ButtonBuilder()
+                        .setCustomId(
+                          'review_stats_close'
+                        )
+                        .setLabel(
+                          'Close'
+                        )
+                        .setEmoji(
+                          '✖️'
+                        )
+                        .setStyle(
+                          ButtonStyle.Danger
+                        )
+                    ),
                 ],
               });
             }
 
             const staff =
-              stats.get(userId);
+              stats.get(
+                userId
+              );
 
             /*
-             * No claims found.
+             * IMPORTANT:
+             *
+             * If the staff member isn't in the
+             * stats map, show zero instead of
+             * crashing.
              */
 
-            if (!staff) {
-              return component.update({
-                content:
-                  `❌ ${member} has **0 recorded claimed tickets**.\n\n` +
-                  'The bot could not find any **Ticket Claims** for this member.',
-                embeds: [],
-                components: [
-                  buildBackCloseRow(),
-                ],
-              });
-            }
+            const staffStats =
+              staff ||
+              createStats(
+                userId
+              );
 
-            await component.update({
+            return component.update({
               content: null,
+
               embeds: [
                 buildStaffEmbed(
                   member,
-                  staff
+                  staffStats
                 ),
               ],
+
               components: [
-                buildBackCloseRow(),
+                new ActionRowBuilder()
+                  .addComponents(
+                    new ButtonBuilder()
+                      .setCustomId(
+                        'review_stats_back'
+                      )
+                      .setLabel(
+                        'Back'
+                      )
+                      .setEmoji(
+                        '⬅️'
+                      )
+                      .setStyle(
+                        ButtonStyle.Secondary
+                      ),
+
+                    new ButtonBuilder()
+                      .setCustomId(
+                        'review_stats_close'
+                      )
+                      .setLabel(
+                        'Close'
+                      )
+                      .setEmoji(
+                        '✖️'
+                      )
+                      .setStyle(
+                        ButtonStyle.Danger
+                      )
+                  ),
               ],
             });
-
-            return;
           }
 
           /*
@@ -1478,7 +1668,7 @@ export default {
             component.customId ===
               'review_stats_back'
           ) {
-            await component.update({
+            return component.update({
               content:
                 '**📊 Review Statistics**\nChoose which statistics you want to view:',
               embeds: [],
@@ -1486,8 +1676,6 @@ export default {
                 buildFilterMenu(),
               ],
             });
-
-            return;
           }
 
           /*
@@ -1508,7 +1696,8 @@ export default {
             const footer =
               component.message
                 .embeds?.[0]
-                ?.footer?.text || '';
+                ?.footer?.text ||
+              '';
 
             const match =
               footer.match(
@@ -1517,7 +1706,9 @@ export default {
 
             let page =
               match
-                ? Number(match[1]) - 1
+                ? Number(
+                    match[1]
+                  ) - 1
                 : 0;
 
             if (
@@ -1536,7 +1727,7 @@ export default {
                 page
               );
 
-            await component.update({
+            return component.update({
               embeds: [
                 result.embed,
               ],
@@ -1547,8 +1738,6 @@ export default {
                 ),
               ],
             });
-
-            return;
           }
 
           /*
@@ -1562,18 +1751,16 @@ export default {
             component.customId ===
               'review_stats_close'
           ) {
-            await component.update({
+            collector.stop(
+              'closed'
+            );
+
+            return component.update({
               content:
                 'Review statistics closed.',
               embeds: [],
               components: [],
             });
-
-            collector.stop(
-              'closed'
-            );
-
-            return;
           }
         } catch (error) {
           console.error(
@@ -1596,25 +1783,15 @@ export default {
       }
     );
 
-    /*
-     * Remove components when collector expires.
-     */
-
     collector.on(
       'end',
-      async (_, reason) => {
-        if (
-          reason === 'closed'
-        ) {
-          return;
-        }
-
+      async () => {
         try {
           await interaction.editReply({
             components: [],
           });
         } catch {
-          // Already expired/deleted.
+          // Message already deleted/expired.
         }
       }
     );
