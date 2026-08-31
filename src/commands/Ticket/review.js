@@ -1443,7 +1443,7 @@ export default {
               return component.update({
                 content:
                   `❌ ${member} has **0 recorded claimed tickets**.\n\n` +
-                  'The bot could not find a **Ticket Claimed** event for this member in the configured Normal or Merch ticket logs.',
+                  'The bot could not find any **Ticket Claims** for this member.',
                 embeds: [],
                 components: [
                   buildBackCloseRow(),
