@@ -37,7 +37,7 @@ const CONFIG_KEY =
 |--------------------------------------------------------------------------
 */
 
-export const SUPPORTED_PLATFORMS = [
+const SUPPORTED_PLATFORMS = [
   'twitch',
   'youtube',
   'tiktok',
@@ -209,18 +209,17 @@ export async function addSocialFeedChannel(
   }
 
   /*
-  |--------------------------------------------------------------------------
-  | Prevent duplicate creators
-  |--------------------------------------------------------------------------
-  */
+   * Prevent duplicate creators.
+   */
 
   const duplicate =
-    channels.find(channel =>
-      channel.platform ===
-        cleanPlatform &&
-      channel.identifier
-        .toLowerCase() ===
-        cleanIdentifier.toLowerCase()
+    channels.find(
+      channel =>
+        channel.platform ===
+          cleanPlatform &&
+        channel.identifier
+          .toLowerCase() ===
+          cleanIdentifier.toLowerCase()
     );
 
   if (duplicate) {
@@ -230,10 +229,9 @@ export async function addSocialFeedChannel(
   }
 
   /*
-  |--------------------------------------------------------------------------
-  | Each configured channel gets its own internal ID
-  |--------------------------------------------------------------------------
-  */
+   * Each configured channel gets
+   * its own internal ID.
+   */
 
   const id =
     `${cleanPlatform}_${Date.now()}_${Math.random()
@@ -260,10 +258,8 @@ export async function addSocialFeedChannel(
         : null,
 
     /*
-    |--------------------------------------------------------------------------
-    | Runtime state
-    |--------------------------------------------------------------------------
-    */
+     * Runtime live state.
+     */
 
     isLive:
       false,
@@ -306,9 +302,7 @@ export async function removeSocialFeedChannel(
     channels.findIndex(
       channel =>
         channel.id ===
-        String(
-          channelId
-        )
+        String(channelId)
     );
 
   if (index === -1) {
@@ -316,7 +310,7 @@ export async function removeSocialFeedChannel(
   }
 
   const [
-    removed,
+    removed
   ] =
     channels.splice(
       index,
@@ -354,9 +348,7 @@ export async function updateSocialFeedChannel(
     channels.find(
       item =>
         item.id ===
-        String(
-          channelId
-        )
+        String(channelId)
     );
 
   if (!channel) {
@@ -364,14 +356,11 @@ export async function updateSocialFeedChannel(
   }
 
   /*
-  |--------------------------------------------------------------------------
-  | Update name
-  |--------------------------------------------------------------------------
-  */
+   * Update name
+   */
 
   if (
-    updates.name !==
-    undefined
+    updates.name !== undefined
   ) {
     const newName =
       String(
@@ -389,14 +378,11 @@ export async function updateSocialFeedChannel(
   }
 
   /*
-  |--------------------------------------------------------------------------
-  | Update platform
-  |--------------------------------------------------------------------------
-  */
+   * Update platform
+   */
 
   if (
-    updates.platform !==
-    undefined
+    updates.platform !== undefined
   ) {
     const platform =
       String(
@@ -418,14 +404,11 @@ export async function updateSocialFeedChannel(
   }
 
   /*
-  |--------------------------------------------------------------------------
-  | Update identifier
-  |--------------------------------------------------------------------------
-  */
+   * Update creator identifier
+   */
 
   if (
-    updates.identifier !==
-    undefined
+    updates.identifier !== undefined
   ) {
     const identifier =
       String(
@@ -443,17 +426,13 @@ export async function updateSocialFeedChannel(
   }
 
   /*
-  |--------------------------------------------------------------------------
-  | Update ping role
-  |--------------------------------------------------------------------------
-  |
-  | null = no ping role.
-  |
-  */
+   * Update notification ping role.
+   *
+   * null / empty = no role ping.
+   */
 
   if (
-    updates.pingRoleId !==
-    undefined
+    updates.pingRoleId !== undefined
   ) {
     channel.pingRoleId =
       updates.pingRoleId
@@ -464,10 +443,26 @@ export async function updateSocialFeedChannel(
   }
 
   /*
-  |--------------------------------------------------------------------------
-  | Save
-  |--------------------------------------------------------------------------
-  */
+   * If platform or identifier changed,
+   * make sure we didn't create a duplicate.
+   */
+
+  const duplicate =
+    channels.find(
+      item =>
+        item.id !== channel.id &&
+        item.platform ===
+          channel.platform &&
+        item.identifier
+          .toLowerCase() ===
+          channel.identifier.toLowerCase()
+    );
+
+  if (duplicate) {
+    throw new Error(
+      `That ${channel.platform} channel is already configured as "${duplicate.name}".`
+    );
+  }
 
   await saveSocialFeedChannels(
     client,
@@ -500,9 +495,7 @@ export async function updateSocialFeedLiveState(
     channels.find(
       item =>
         item.id ===
-        String(
-          channelId
-        )
+        String(channelId)
     );
 
   if (!channel) {
@@ -547,107 +540,26 @@ export async function findSocialFeedChannel(
     channels.find(
       channel =>
         channel.id ===
-        String(
-          channelId
-        )
-    ) || null
+        String(channelId)
+    ) ||
+    null
   );
 }
 
 /*
 |--------------------------------------------------------------------------
-| Find channel by platform + identifier
+| Get supported platforms
+|--------------------------------------------------------------------------
+|
+| Useful for commands such as:
+|
+| /add channel
+|
 |--------------------------------------------------------------------------
 */
 
-export async function findSocialFeedChannelByIdentifier(
-  client,
-  guildId,
-  platform,
-  identifier
-) {
-  const channels =
-    await getSocialFeedChannels(
-      client,
-      guildId
-    );
-
-  const cleanPlatform =
-    String(
-      platform || ''
-    ).toLowerCase();
-
-  const cleanIdentifier =
-    String(
-      identifier || ''
-    )
-      .trim()
-      .toLowerCase();
-
-  return (
-    channels.find(
-      channel =>
-        channel.platform ===
-          cleanPlatform &&
-        channel.identifier
-          .toLowerCase() ===
-          cleanIdentifier
-    ) || null
-  );
-}
-
-/*
-|--------------------------------------------------------------------------
-| Get platform display name
-|--------------------------------------------------------------------------
-*/
-
-export function getPlatformDisplayName(
-  platform
-) {
-  switch (
-    String(
-      platform || ''
-    ).toLowerCase()
-  ) {
-    case 'twitch':
-      return 'Twitch';
-
-    case 'youtube':
-      return 'YouTube';
-
-    case 'tiktok':
-      return 'TikTok';
-
-    default:
-      return 'Unknown';
-  }
-}
-
-/*
-|--------------------------------------------------------------------------
-| Get platform emoji
-|--------------------------------------------------------------------------
-*/
-
-export function getPlatformEmoji(
-  platform
-) {
-  switch (
-    String(
-      platform || ''
-    ).toLowerCase()
-  ) {
-    case 'twitch':
-      return '🟣';
-
-    case 'youtube':
-      return '🔴';
-
-    case 'tiktok':
-      return '🎵';
-
-    default:
-      return '📺';
-  }
+export function getSupportedSocialPlatforms() {
+  return [
+    ...SUPPORTED_PLATFORMS,
+  ];
 }
