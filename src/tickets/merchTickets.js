@@ -41,75 +41,53 @@ import {
 export const MERCH_TICKET_CONFIG = {
     id: 'merch',
 
-    panelChannelId:
-        '1543031129559408660',
+    panelChannelId: '1543031129559408660',
 
-    categoryId:
-        '1543352648021966949',
+    categoryId: '1543352648021966949',
 
-    staffRoleId:
-        '1543556139462164480',
+    staffRoleId: '1543556139462164480',
 
-    ticketLogsChannelId:
-        '1543331796568121467',
+    ticketLogsChannelId: '1543331796568121467',
 
-    transcriptLogsChannelId:
-        '1543331916235931678',
+    transcriptLogsChannelId: '1543331916235931678',
 
-    reviewLogsChannelId:
-        '1543332129117708380',
+    reviewLogsChannelId: '1543332129117708380',
 
-    color:
-        0xF8D568,
+    color: 0xF8D568,
 
-    imageUrl:
-        null,
+    /*
+     * Optional merch panel image.
+     *
+     * Leave null if you do not want an image.
+     */
+    imageUrl: null,
 
-    panelTitle:
-        'Merch Tickets',
+    panelTitle: 'Merch Tickets',
 
     panelDescription:
         'Need help with FruityINC merchandise? Select the option below that best matches your request.',
 
     buttons: [
         {
-            id:
-                'returns',
-
-            label:
-                'Returns',
-
-            emoji:
-                '⛔',
-
+            id: 'returns',
+            label: 'Returns',
+            emoji: '⛔',
             description:
                 'Need help with returning an item?',
         },
 
         {
-            id:
-                'inquire',
-
-            label:
-                'Inquire',
-
-            emoji:
-                '❓',
-
+            id: 'inquire',
+            label: 'Inquire',
+            emoji: '❓',
             description:
                 'Have a question about our merchandise?',
         },
 
         {
-            id:
-                'shipping',
-
-            label:
-                'Shipping Help',
-
-            emoji:
-                '📦',
-
+            id: 'shipping',
+            label: 'Shipping Help',
+            emoji: '📦',
             description:
                 'Need help with shipping or delivery?',
         },
@@ -123,57 +101,36 @@ export const MERCH_TICKET_CONFIG = {
 
 function getMerchButton(buttonId) {
     return MERCH_TICKET_CONFIG.buttons.find(
-        button =>
-            button.id === buttonId
+        button => button.id === buttonId
     );
 }
+
 
 function sanitizeChannelName(value) {
     return String(value || '')
         .toLowerCase()
-        .replace(
-            /[^a-z0-9\s-]/g,
-            ''
-        )
-        .replace(
-            /\s+/g,
-            '-'
-        )
-        .replace(
-            /-+/g,
-            '-'
-        )
-        .replace(
-            /^-|-$/g,
-            ''
-        )
-        .slice(
-            0,
-            90
-        );
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 90);
 }
 
-function getPriorityInfo(
-    priority = 'none'
-) {
+
+function getPriorityInfo(priority = 'none') {
     return (
         PRIORITY_MAP?.[priority] ||
         PRIORITY_MAP?.none || {
-            label:
-                'None',
-
-            emoji:
-                '⚪',
-
-            color:
-                0x95A5A6,
+            label: 'None',
+            emoji: '⚪',
+            color: 0x95A5A6,
         }
     );
 }
 
 
 /* ============================================================
-   MERCH PANEL
+   MERCH TICKET PANEL
    ============================================================ */
 
 export function buildMerchTicketPanel() {
@@ -183,34 +140,51 @@ export function buildMerchTicketPanel() {
                 MERCH_TICKET_CONFIG.color
             );
 
-    /*
-     * TITLE + DESCRIPTION
-     */
 
+    /*
+     * HEADER
+     */
     container.addTextDisplayComponents(
-        new TextDisplayBuilder()
-            .setContent(
-                `# 🛍️ ${MERCH_TICKET_CONFIG.panelTitle}\n\n` +
-                MERCH_TICKET_CONFIG.panelDescription
-            )
+        new TextDisplayBuilder().setContent(
+            `# 🛍️ ${MERCH_TICKET_CONFIG.panelTitle}\n\n` +
+            MERCH_TICKET_CONFIG.panelDescription
+        )
     );
+
+
+    /*
+     * OPTIONAL IMAGE
+     */
+    if (MERCH_TICKET_CONFIG.imageUrl) {
+        container.addMediaGalleryComponents(
+            new MediaGalleryBuilder().addItems(
+                new MediaGalleryItemBuilder()
+                    .setURL(
+                        MERCH_TICKET_CONFIG.imageUrl
+                    )
+                    .setDescription(
+                        'Fruity Merchandise Tickets'
+                    )
+            )
+        );
+    }
+
 
     /*
      * LARGE DIVIDER
      */
-
     container.addSeparatorComponents(
         new SeparatorBuilder()
-            .setDivider(true)
             .setSpacing(
                 SeparatorSpacingSize.Large
             )
+            .setDivider(true)
     );
+
 
     /*
      * TICKET OPTIONS
      */
-
     for (
         const button
         of MERCH_TICKET_CONFIG.buttons
@@ -218,11 +192,10 @@ export function buildMerchTicketPanel() {
         const section =
             new SectionBuilder()
                 .addTextDisplayComponents(
-                    new TextDisplayBuilder()
-                        .setContent(
-                            `### ${button.emoji} ${button.label}\n` +
-                            button.description
-                        )
+                    new TextDisplayBuilder().setContent(
+                        `### ${button.emoji} ${button.label}\n` +
+                        button.description
+                    )
                 )
                 .setButtonAccessory(
                     new ButtonBuilder()
@@ -240,52 +213,36 @@ export function buildMerchTicketPanel() {
                         )
                 );
 
+
         container.addSectionComponents(
             section
         );
 
-        /*
-         * LARGE DIVIDER BETWEEN OPTIONS
-         */
 
-        if (
-            button !==
-            MERCH_TICKET_CONFIG.buttons[
-                MERCH_TICKET_CONFIG.buttons.length - 1
-            ]
-        ) {
-            container.addSeparatorComponents(
-                new SeparatorBuilder()
-                    .setDivider(true)
-                    .setSpacing(
-                        SeparatorSpacingSize.Large
-                    )
-            );
-        }
+        /*
+         * LARGE DIVIDER AFTER EACH OPTION
+         *
+         * This matches the Normal Tickets panel.
+         */
+        container.addSeparatorComponents(
+            new SeparatorBuilder()
+                .setSpacing(
+                    SeparatorSpacingSize.Large
+                )
+                .setDivider(true)
+        );
     }
 
-    /*
-     * BOTTOM DIVIDER
-     */
-
-    container.addSeparatorComponents(
-        new SeparatorBuilder()
-            .setDivider(true)
-            .setSpacing(
-                SeparatorSpacingSize.Large
-            )
-    );
 
     /*
      * FOOTER
      */
-
     container.addTextDisplayComponents(
-        new TextDisplayBuilder()
-            .setContent(
-                '🛍️ Select the button that best matches your request to open a merchandise support ticket.'
-            )
+        new TextDisplayBuilder().setContent(
+            '🛍️ Select the button that best matches your request to open a merchandise support ticket.'
+        )
     );
+
 
     return container;
 }
@@ -304,6 +261,7 @@ export async function reconcileMerchTicketPanel(
                 MERCH_TICKET_CONFIG.panelChannelId
             );
 
+
         if (
             !channel ||
             !channel.isTextBased() ||
@@ -314,54 +272,76 @@ export async function reconcileMerchTicketPanel(
             );
         }
 
+
         const messages =
             await channel.messages.fetch({
-                limit:
-                    50,
+                limit: 50,
             });
 
-        const existing =
-            messages.find(
-                message => {
-                    if (
-                        !message.author?.bot
-                    ) {
-                        return false;
-                    }
 
-                    return JSON.stringify(
-                        message.components
-                    ).includes(
-                        'merch_ticket_create:'
-                    );
+        /*
+         * Find the existing merch panel.
+         *
+         * Only bot messages containing our custom ID
+         * are considered.
+         */
+        const existing =
+            messages.find(message => {
+                if (!message.author?.bot) {
+                    return false;
                 }
-            );
+
+                const raw =
+                    JSON.stringify(
+                        message.components
+                    );
+
+                return raw.includes(
+                    'merch_ticket_create:'
+                );
+            });
+
 
         const components = [
             buildMerchTicketPanel(),
         ];
 
+
+        /*
+         * UPDATE EXISTING PANEL
+         */
         if (existing) {
             await existing.edit({
                 components,
+
                 flags:
                     MessageFlags.IsComponentsV2,
             });
 
+
             logger.info(
                 '[Merch Tickets] Panel updated.'
             );
-        } else {
+        }
+
+
+        /*
+         * CREATE PANEL IF IT DOES NOT EXIST
+         */
+        else {
             await channel.send({
                 components,
+
                 flags:
                     MessageFlags.IsComponentsV2,
             });
+
 
             logger.info(
                 '[Merch Tickets] Panel created.'
             );
         }
+
     } catch (error) {
         logger.error(
             '[Merch Tickets] Failed to reconcile panel:',
@@ -372,7 +352,7 @@ export async function reconcileMerchTicketPanel(
 
 
 /* ============================================================
-   CREATE MODAL
+   CREATE TICKET MODAL
    ============================================================ */
 
 export async function showMerchTicketModal(
@@ -381,6 +361,7 @@ export async function showMerchTicketModal(
 ) {
     const button =
         getMerchButton(buttonId);
+
 
     if (!button) {
         await interaction.reply({
@@ -394,6 +375,7 @@ export async function showMerchTicketModal(
         return;
     }
 
+
     const modal =
         new ModalBuilder()
             .setCustomId(
@@ -403,11 +385,10 @@ export async function showMerchTicketModal(
                 button.label
             );
 
+
     const reason =
         new TextInputBuilder()
-            .setCustomId(
-                'reason'
-            )
+            .setCustomId('reason')
             .setLabel(
                 'Why are you creating a ticket?'
             )
@@ -417,12 +398,9 @@ export async function showMerchTicketModal(
             .setStyle(
                 TextInputStyle.Paragraph
             )
-            .setRequired(
-                true
-            )
-            .setMaxLength(
-                1000
-            );
+            .setRequired(true)
+            .setMaxLength(1000);
+
 
     modal.addComponents(
         new ActionRowBuilder()
@@ -430,6 +408,7 @@ export async function showMerchTicketModal(
                 reason
             )
     );
+
 
     await interaction.showModal(
         modal
@@ -447,9 +426,8 @@ export async function createMerchTicket(
     reason
 ) {
     const button =
-        getMerchButton(
-            buttonId
-        );
+        getMerchButton(buttonId);
+
 
     if (!button) {
         throw new Error(
@@ -457,17 +435,23 @@ export async function createMerchTicket(
         );
     }
 
+
     const guild =
         interaction.guild;
 
     const member =
         interaction.member;
 
+
+    /*
+     * MAXIMUM OPEN TICKETS
+     */
     const openCount =
         await getOpenTicketCountForUser(
             guild.id,
             member.id
         );
+
 
     if (openCount >= 3) {
         throw new Error(
@@ -475,10 +459,15 @@ export async function createMerchTicket(
         );
     }
 
+
+    /*
+     * GET MERCH CATEGORY
+     */
     const category =
         await guild.channels.fetch(
             MERCH_TICKET_CONFIG.categoryId
         );
+
 
     if (
         !category ||
@@ -489,21 +478,31 @@ export async function createMerchTicket(
         );
     }
 
+
+    /*
+     * TICKET NUMBER
+     */
     const ticketNumber =
         await incrementTicketCounter(
             guild.id
         );
 
+
+    /*
+     * CHANNEL NAME
+     */
     const baseName =
         sanitizeChannelName(
             `${button.label}-${member.user.username}`
         );
+
 
     let ticketName =
         baseName;
 
     let number =
         1;
+
 
     while (
         guild.channels.cache.some(
@@ -518,12 +517,17 @@ export async function createMerchTicket(
             `${baseName}-${number}`;
     }
 
+
     ticketName =
         ticketName.slice(
             0,
             100
         );
 
+
+    /*
+     * CREATE CHANNEL
+     */
     const channel =
         await guild.channels.create({
             name:
@@ -571,6 +575,10 @@ export async function createMerchTicket(
             ],
         });
 
+
+    /*
+     * SAVE TICKET DATA
+     */
     const ticketData = {
         id:
             ticketNumber,
@@ -623,17 +631,24 @@ export async function createMerchTicket(
             new Date().toISOString(),
     };
 
+
     await saveTicketData(
         guild.id,
         channel.id,
         ticketData
     );
 
-    const priority =
-        getPriorityInfo(
-            'none'
-        );
 
+    /*
+     * PRIORITY
+     */
+    const priority =
+        getPriorityInfo('none');
+
+
+    /*
+     * TICKET EMBED
+     */
     const embed =
         new EmbedBuilder()
             .setColor(
@@ -684,9 +699,17 @@ export async function createMerchTicket(
             )
             .setTimestamp();
 
+
+    /*
+     * TICKET CONTROLS
+     */
     const controls =
         new ActionRowBuilder()
             .addComponents(
+
+                /*
+                 * CLAIM
+                 */
                 new ButtonBuilder()
                     .setCustomId(
                         'ticket_claim'
@@ -701,20 +724,30 @@ export async function createMerchTicket(
                         ButtonStyle.Primary
                     ),
 
+
+                /*
+                 * PRIORITY
+                 *
+                 * MUST MATCH THE NORMAL TICKET BUTTON.
+                 */
                 new ButtonBuilder()
                     .setCustomId(
-                        'ticket_priority_menu'
+                        'ticket_priority'
                     )
                     .setLabel(
                         'Priority'
                     )
                     .setEmoji(
-                        '💼'
+                        '🎯'
                     )
                     .setStyle(
                         ButtonStyle.Secondary
                     ),
 
+
+                /*
+                 * CLOSE
+                 */
                 new ButtonBuilder()
                     .setCustomId(
                         'ticket_close'
@@ -730,29 +763,41 @@ export async function createMerchTicket(
                     )
             );
 
+
     /*
+     * SEND TICKET HEADER
+     *
      * STAFF ROLE IS NOT PINGED.
      */
-
     await channel.send({
         content:
             member.toString(),
 
         embeds:
-            [embed],
+            [
+                embed
+            ],
 
         components:
-            [controls],
+            [
+                controls
+            ],
 
         allowedMentions: {
             users:
-                [member.id],
+                [
+                    member.id
+                ],
 
             roles:
                 [],
         },
     });
 
+
+    /*
+     * WELCOME MESSAGE
+     */
     await channel.send({
         embeds: [
             new EmbedBuilder()
@@ -766,6 +811,7 @@ export async function createMerchTicket(
         ],
     });
 
+
     return {
         channel,
         ticketData,
@@ -774,7 +820,7 @@ export async function createMerchTicket(
 
 
 /* ============================================================
-   MERCH BUTTON HANDLER
+   MERCH TICKET BUTTON HANDLER
    ============================================================ */
 
 export const merchTicketCreateButton = {
@@ -789,6 +835,7 @@ export const merchTicketCreateButton = {
         const buttonId =
             args[0];
 
+
         await showMerchTicketModal(
             interaction,
             buttonId
@@ -798,7 +845,7 @@ export const merchTicketCreateButton = {
 
 
 /* ============================================================
-   MERCH MODAL HANDLER
+   MERCH TICKET MODAL HANDLER
    ============================================================ */
 
 export const merchTicketModal = {
@@ -811,12 +858,14 @@ export const merchTicketModal = {
         const buttonId =
             interaction.customId.split(':')[1];
 
+
         const reason =
             interaction.fields
                 .getTextInputValue(
                     'reason'
                 )
                 .trim();
+
 
         if (!reason) {
             await interaction.reply({
@@ -830,10 +879,12 @@ export const merchTicketModal = {
             return;
         }
 
+
         await interaction.deferReply({
             flags:
                 MessageFlags.Ephemeral,
         });
+
 
         try {
             const result =
@@ -843,15 +894,18 @@ export const merchTicketModal = {
                     reason
                 );
 
+
             await interaction.editReply({
                 content:
                     `✅ Your merchandise ticket has been created: ${result.channel}`,
             });
+
         } catch (error) {
             logger.error(
                 '[Merch Tickets] Ticket creation failed:',
                 error
             );
+
 
             await interaction.editReply({
                 content:
@@ -863,7 +917,7 @@ export const merchTicketModal = {
 
 
 /* ============================================================
-   EXPORT
+   EXPORT CONFIG
    ============================================================ */
 
 export default {
