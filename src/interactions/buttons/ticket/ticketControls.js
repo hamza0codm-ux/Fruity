@@ -1,42 +1,27 @@
 import {
     closeTicketHandler,
     claimTicketHandler,
-
-    priorityMenuTicketHandler,
-
     pinTicketHandler,
     unclaimTicketHandler,
     reopenTicketHandler,
     deleteTicketHandler,
 } from '../../../handlers/ticketButtons.js';
 
+import {
+    priorityDropdownButton,
+} from './priority.js';
 
 export default [
-    // ==========================================
-    // CLOSE
-    // ==========================================
-
+    // Close
     closeTicketHandler,
 
-
-    // ==========================================
-    // CLAIM
-    // ==========================================
-
+    // Claim
     claimTicketHandler,
 
+    // Priority dropdown
+    priorityDropdownButton,
 
-    // ==========================================
-    // PRIORITY
-    // ==========================================
-
-    priorityMenuTicketHandler,
-
-
-    // ==========================================
-    // OTHER TICKET CONTROLS
-    // ==========================================
-
+    // Other ticket controls
     pinTicketHandler,
     unclaimTicketHandler,
     reopenTicketHandler,
