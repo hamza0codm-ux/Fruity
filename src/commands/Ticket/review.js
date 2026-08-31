@@ -24,101 +24,243 @@ const MERCH = {
 const MIN_CLAIMS = 5;
 const PAGE_SIZE = 8;
 
-/*
-|--------------------------------------------------------------------------
-| Helpers
-|--------------------------------------------------------------------------
-*/
+/* =========================================================
+   HELPERS
+========================================================= */
 
-function getTicketNumber(message) {
-  if (!message?.embeds?.length) return null;
-
-  const embed = message.embeds[0];
-
-  const fields = embed.fields || [];
-
-  const ticketField = fields.find(
-    field =>
-      String(field.name).toLowerCase() === 'ticket'
-  );
-
-  if (ticketField?.value) {
-    const match = String(ticketField.value).match(/\d+/);
-    if (match) return match[0];
-  }
-
-  const text = [
-    embed.title || '',
-    embed.description || '',
-  ].join(' ');
-
-  const match = text.match(
-    /ticket\s*#?\s*(\d+)/i
-  );
-
-  return match ? match[1] : null;
+function clean(value) {
+  return String(value ?? '')
+    .replace(/<@!?(\d+)>/g, '$1')
+    .trim();
 }
 
-function getUserIdFromMention(value) {
+function extractUserId(value) {
   if (!value) return null;
 
-  const match = String(value).match(
+  const mention = String(value).match(
     /<@!?(\d+)>/
   );
 
-  return match ? match[1] : null;
-}
-
-function getClaimedBy(message) {
-  if (!message?.embeds?.length) return null;
-
-  const embed = message.embeds[0];
-
-  const field = (embed.fields || []).find(
-    f =>
-      String(f.name).toLowerCase() ===
-      'claimed by'
-  );
-
-  if (!field?.value) return null;
-
-  return getUserIdFromMention(field.value);
-}
-
-function getRating(message) {
-  if (!message?.embeds?.length) return null;
-
-  const embed = message.embeds[0];
-
-  const fields = embed.fields || [];
-
-  const field = fields.find(
-    f =>
-      String(f.name).toLowerCase() ===
-      'rating'
-  );
-
-  if (!field?.value) return null;
-
-  const value = String(field.value);
-
-  /*
-   * Handles:
-   * ⭐⭐⭐⭐⭐
-   * 5
-   * ⭐ 5
-   */
-  const numberMatch = value.match(
-    /(?:^|\s)([1-5])(?:\s|$)/
-  );
-
-  if (numberMatch) {
-    return Number(numberMatch[1]);
+  if (mention) {
+    return mention[1];
   }
 
-  const stars = (
-    value.match(/⭐/g) || []
-  ).length;
+  const id = String(value).match(
+    /\b\d{17,20}\b/
+  );
+
+  return id ? id[0] : null;
+}
+
+function extractTicketNumber(message) {
+  if (!message) return null;
+
+  const embed = message.embeds?.[0];
+
+  if (!embed) return null;
+
+  /*
+   * First check embed fields.
+   */
+  for (const field of embed.fields || []) {
+    const fieldName =
+      String(field.name || '').toLowerCase();
+
+    if (
+      fieldName.includes('ticket') ||
+      fieldName.includes('number') ||
+      fieldName.includes('id')
+    ) {
+      const match =
+        String(field.value || '').match(
+          /\b\d{1,10}\b/
+        );
+
+      if (match) {
+        return match[0];
+      }
+    }
+  }
+
+  /*
+   * Then check the complete embed text.
+   */
+  const text = [
+    embed.title,
+    embed.description,
+    ...(embed.fields || []).flatMap(field => [
+      field.name,
+      field.value,
+    ]),
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  /*
+   * Supports:
+   * Ticket #123
+   * Ticket 123
+   * ticketNumber: 123
+   */
+  const ticketMatch = text.match(
+    /ticket(?:\s*(?:number|id))?\s*#?\s*(\d+)/i
+  );
+
+  if (ticketMatch) {
+    return ticketMatch[1];
+  }
+
+  return null;
+}
+
+function extractStaffFromClaimLog(message) {
+  if (!message) return null;
+
+  const embed = message.embeds?.[0];
+
+  if (!embed) return null;
+
+  /*
+   * Look through every field.
+   */
+  for (const field of embed.fields || []) {
+    const name =
+      String(field.name || '').toLowerCase();
+
+    const value =
+      String(field.value || '');
+
+    if (
+      name.includes('claim') ||
+      name.includes('staff') ||
+      name.includes('executor') ||
+      name.includes('user')
+    ) {
+      const id =
+        extractUserId(value);
+
+      if (id) {
+        return id;
+      }
+    }
+  }
+
+  /*
+   * Look through the description.
+   */
+  const description =
+    embed.description || '';
+
+  const patterns = [
+    /claimed\s+by\s+<@!?(\d+)>/i,
+    /claimed\s+by\s+.*?<@!?(\d+)>/i,
+    /staff\s*[:\-]\s*<@!?(\d+)>/i,
+    /executor\s*[:\-]\s*<@!?(\d+)>/i,
+    /<@!?(\d+)>\s+(?:claimed|has claimed)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match =
+      description.match(pattern);
+
+    if (match) {
+      return match[1];
+    }
+  }
+
+  /*
+   * Finally inspect the entire embed.
+   */
+  const fullText = [
+    embed.title,
+    embed.description,
+    ...(embed.fields || []).flatMap(field => [
+      field.name,
+      field.value,
+    ]),
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  for (const pattern of patterns) {
+    const match =
+      fullText.match(pattern);
+
+    if (match) {
+      return match[1];
+    }
+  }
+
+  return null;
+}
+
+function extractRating(message) {
+  if (!message) return null;
+
+  const embed = message.embeds?.[0];
+
+  if (!embed) return null;
+
+  /*
+   * Search fields first.
+   */
+  for (const field of embed.fields || []) {
+    const name =
+      String(field.name || '').toLowerCase();
+
+    const value =
+      String(field.value || '');
+
+    if (
+      name.includes('rating') ||
+      name.includes('score') ||
+      name.includes('star')
+    ) {
+      const numeric =
+        value.match(
+          /\b([1-5])(?:\s*\/\s*5)?\b/
+        );
+
+      if (numeric) {
+        return Number(numeric[1]);
+      }
+
+      const stars =
+        (value.match(/⭐/g) || [])
+          .length;
+
+      if (stars >= 1 && stars <= 5) {
+        return stars;
+      }
+    }
+  }
+
+  /*
+   * Search description/title.
+   */
+  const text = [
+    embed.title,
+    embed.description,
+    ...(embed.fields || []).flatMap(field => [
+      field.name,
+      field.value,
+    ]),
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const numeric =
+    text.match(
+      /(?:rating|score|stars?)\s*[:\-]?\s*([1-5])(?:\s*\/\s*5)?/i
+    );
+
+  if (numeric) {
+    return Number(numeric[1]);
+  }
+
+  const stars =
+    (text.match(/⭐/g) || [])
+      .length;
 
   if (stars >= 1 && stars <= 5) {
     return stars;
@@ -127,11 +269,41 @@ function getRating(message) {
   return null;
 }
 
-function getReviewTicketNumber(message) {
-  return getTicketNumber(message);
+async function fetchAllMessages(channel) {
+  const messages = [];
+  let before = null;
+
+  while (true) {
+    const batch =
+      await channel.messages.fetch({
+        limit: 100,
+        ...(before ? { before } : {}),
+      });
+
+    if (!batch.size) {
+      break;
+    }
+
+    messages.push(
+      ...batch.values()
+    );
+
+    if (batch.size < 100) {
+      break;
+    }
+
+    before =
+      batch.last()?.id;
+
+    if (!before) {
+      break;
+    }
+  }
+
+  return messages;
 }
 
-function createStatsObject(userId) {
+function createStats(userId) {
   return {
     userId,
     claims: 0,
@@ -148,57 +320,38 @@ function createStatsObject(userId) {
   };
 }
 
-async function fetchAllMessages(channel) {
-  const messages = [];
-  let before;
-
-  while (true) {
-    const batch = await channel.messages.fetch({
-      limit: 100,
-      ...(before ? { before } : {}),
-    });
-
-    if (!batch.size) break;
-
-    messages.push(...batch.values());
-
-    if (batch.size < 100) break;
-
-    before = batch.last()?.id;
-
-    if (!before) break;
-  }
-
-  return messages;
-}
-
-/*
-|--------------------------------------------------------------------------
-| Load statistics
-|--------------------------------------------------------------------------
-*/
+/* =========================================================
+   COLLECT CLAIMS + REVIEWS
+========================================================= */
 
 async function collectStatistics(guild) {
-  const claimMap = new Map();
-  const reviewMap = new Map();
+  const staffStats = new Map();
+
+  /*
+   * We keep claims and reviews separated first.
+   * Reviews are later matched to tickets.
+   */
+  const claims = new Map();
+  const reviews = new Map();
 
   const sources = [
     {
-      type: 'normal',
+      name: 'Normal',
       ticketLog: NORMAL.ticketLog,
       reviewLog: NORMAL.reviewLog,
     },
     {
-      type: 'merch',
+      name: 'Merch',
       ticketLog: MERCH.ticketLog,
       reviewLog: MERCH.reviewLog,
     },
   ];
 
   for (const source of sources) {
-    /*
-     * CLAIMS
-     */
+    /* -----------------------------------------------------
+       CLAIM LOG
+    ----------------------------------------------------- */
+
     const ticketChannel =
       guild.channels.cache.get(
         source.ticketLog
@@ -208,61 +361,94 @@ async function collectStatistics(guild) {
         .catch(() => null);
 
     if (ticketChannel?.isTextBased()) {
-      let messages = [];
-
       try {
-        messages =
+        const messages =
           await fetchAllMessages(
             ticketChannel
           );
-      } catch {
-        messages = [];
-      }
 
-      for (const message of messages) {
-        if (
-          message.author?.id ===
-          guild.client.user?.id
-        ) {
-          const title =
-            message.embeds?.[0]?.title ||
-            '';
+        for (const message of messages) {
+          const embed =
+            message.embeds?.[0];
+
+          if (!embed) {
+            continue;
+          }
+
+          const fullText = [
+            embed.title,
+            embed.description,
+            ...(embed.fields || []).flatMap(
+              field => [
+                field.name,
+                field.value,
+              ]
+            ),
+          ]
+            .filter(Boolean)
+            .join(' ');
+
+          /*
+           * Don't depend on one exact title.
+           */
+          if (
+            !/claim/i.test(fullText)
+          ) {
+            continue;
+          }
+
+          /*
+           * Ignore "unclaimed".
+           */
+          if (
+            /unclaim/i.test(fullText)
+          ) {
+            continue;
+          }
+
+          const ticketNumber =
+            extractTicketNumber(
+              message
+            );
+
+          const staffId =
+            extractStaffFromClaimLog(
+              message
+            );
 
           if (
-            title
-              .toLowerCase()
-              .includes('ticket claimed')
+            !ticketNumber ||
+            !staffId
           ) {
-            const ticketNumber =
-              getTicketNumber(message);
+            continue;
+          }
 
-            const staffId =
-              getClaimedBy(message);
+          /*
+           * Count each ticket only once.
+           */
+          const key =
+            `${source.name}:${ticketNumber}`;
 
-            if (
-              ticketNumber &&
-              staffId
-            ) {
-              if (
-                !claimMap.has(ticketNumber)
-              ) {
-                claimMap.set(
-                  ticketNumber,
-                  {
-                    staffId,
-                    type: source.type,
-                  }
-                );
-              }
-            }
+          if (!claims.has(key)) {
+            claims.set(key, {
+              staffId,
+              ticketNumber,
+              source: source.name,
+            });
           }
         }
+      } catch (error) {
+        console.error(
+          `[Review Stats] Failed reading ${source.name} claim log:`,
+          error
+        );
       }
     }
 
-    /*
-     * REVIEWS
-     */
+    /* -----------------------------------------------------
+       REVIEW LOG
+    ----------------------------------------------------- */
+
     const reviewChannel =
       guild.channels.cache.get(
         source.reviewLog
@@ -272,78 +458,86 @@ async function collectStatistics(guild) {
         .catch(() => null);
 
     if (reviewChannel?.isTextBased()) {
-      let messages = [];
-
       try {
-        messages =
+        const messages =
           await fetchAllMessages(
             reviewChannel
           );
-      } catch {
-        messages = [];
-      }
 
-      for (const message of messages) {
-        if (
-          message.author?.id !==
-          guild.client.user?.id
-        ) {
-          continue;
-        }
+        for (const message of messages) {
+          const embed =
+            message.embeds?.[0];
 
-        const title =
-          message.embeds?.[0]?.title ||
-          '';
+          if (!embed) {
+            continue;
+          }
 
-        if (
-          !title
-            .toLowerCase()
-            .includes('feedback')
-        ) {
-          continue;
-        }
+          const fullText = [
+            embed.title,
+            embed.description,
+            ...(embed.fields || []).flatMap(
+              field => [
+                field.name,
+                field.value,
+              ]
+            ),
+          ]
+            .filter(Boolean)
+            .join(' ');
 
-        const ticketNumber =
-          getReviewTicketNumber(message);
+          if (
+            !/review|feedback|rating/i.test(
+              fullText
+            )
+          ) {
+            continue;
+          }
 
-        const rating =
-          getRating(message);
+          const ticketNumber =
+            extractTicketNumber(
+              message
+            );
 
-        if (
-          !ticketNumber ||
-          !rating
-        ) {
-          continue;
-        }
+          const rating =
+            extractRating(
+              message
+            );
 
-        if (
-          !reviewMap.has(ticketNumber)
-        ) {
-          reviewMap.set(
-            ticketNumber,
-            {
+          if (
+            !ticketNumber ||
+            !rating
+          ) {
+            continue;
+          }
+
+          const key =
+            `${source.name}:${ticketNumber}`;
+
+          if (!reviews.has(key)) {
+            reviews.set(key, {
+              ticketNumber,
               rating,
-              type: source.type,
-            }
-          );
+              source: source.name,
+            });
+          }
         }
+      } catch (error) {
+        console.error(
+          `[Review Stats] Failed reading ${source.name} review log:`,
+          error
+        );
       }
     }
   }
 
   /*
-   * Combine claim + review data by ticket number.
+   * Build staff statistics.
    */
-  const staffStats = new Map();
-
-  for (
-    const [ticketNumber, claim] of
-    claimMap.entries()
-  ) {
+  for (const claim of claims.values()) {
     if (!staffStats.has(claim.staffId)) {
       staffStats.set(
         claim.staffId,
-        createStatsObject(
+        createStats(
           claim.staffId
         )
       );
@@ -356,8 +550,11 @@ async function collectStatistics(guild) {
 
     stats.claims++;
 
+    const reviewKey =
+      `${claim.source}:${claim.ticketNumber}`;
+
     const review =
-      reviewMap.get(ticketNumber);
+      reviews.get(reviewKey);
 
     if (review) {
       stats.reviews++;
@@ -370,9 +567,6 @@ async function collectStatistics(guild) {
     }
   }
 
-  /*
-   * Calculate averages.
-   */
   for (const stats of staffStats.values()) {
     if (stats.reviews > 0) {
       stats.average =
@@ -381,18 +575,42 @@ async function collectStatistics(guild) {
     }
   }
 
+  /*
+   * Debug output so if something is wrong,
+   * Railway will tell us exactly what was found.
+   */
+  console.log(
+    `[Review Stats] Claims found: ${claims.size}`
+  );
+
+  console.log(
+    `[Review Stats] Reviews found: ${reviews.size}`
+  );
+
+  console.log(
+    `[Review Stats] Staff found: ${staffStats.size}`
+  );
+
+  for (const stats of staffStats.values()) {
+    console.log(
+      `[Review Stats] ${stats.userId}: ${stats.claims} claims, ${stats.reviews} reviews, ${stats.average.toFixed(2)} avg`
+    );
+  }
+
   return staffStats;
 }
 
-/*
-|--------------------------------------------------------------------------
-| Formatting
-|--------------------------------------------------------------------------
-*/
+/* =========================================================
+   DISPLAY HELPERS
+========================================================= */
 
-function stars(rating) {
+function stars(value) {
+  if (!value) {
+    return '☆☆☆☆☆';
+  }
+
   const rounded =
-    Math.round(rating);
+    Math.round(value);
 
   return (
     '⭐'.repeat(rounded) +
@@ -405,7 +623,7 @@ function stars(rating) {
   );
 }
 
-function ratingBar(count, total) {
+function percentage(count, total) {
   if (!total) {
     return '0%';
   }
@@ -415,49 +633,43 @@ function ratingBar(count, total) {
   )}%`;
 }
 
-async function resolveMember(guild, userId) {
-  return guild.members.cache.get(userId) ||
-    await guild.members
-      .fetch(userId)
-      .catch(() => null);
-}
-
-function buildLeaderboardEmbed(
+function buildLeaderboard(
   guild,
   stats,
   page
 ) {
-  const eligible = [...stats.values()]
-    .filter(
-      staff =>
-        staff.claims >= MIN_CLAIMS
-    )
-    .sort((a, b) => {
-      if (
-        b.average !==
-        a.average
-      ) {
-        return (
-          b.average -
+  const eligible =
+    [...stats.values()]
+      .filter(
+        staff =>
+          staff.claims >= MIN_CLAIMS
+      )
+      .sort((a, b) => {
+        if (
+          b.average !==
           a.average
-        );
-      }
+        ) {
+          return (
+            b.average -
+            a.average
+          );
+        }
 
-      if (
-        b.reviews !==
-        a.reviews
-      ) {
-        return (
-          b.reviews -
+        if (
+          b.reviews !==
           a.reviews
-        );
-      }
+        ) {
+          return (
+            b.reviews -
+            a.reviews
+          );
+        }
 
-      return (
-        b.claims -
-        a.claims
-      );
-    });
+        return (
+          b.claims -
+          a.claims
+        );
+      });
 
   const totalPages =
     Math.max(
@@ -468,15 +680,16 @@ function buildLeaderboardEmbed(
       )
     );
 
-  const safePage = Math.min(
-    Math.max(page, 0),
-    totalPages - 1
-  );
+  const safePage =
+    Math.min(
+      Math.max(page, 0),
+      totalPages - 1
+    );
 
   const start =
     safePage * PAGE_SIZE;
 
-  const pageItems =
+  const items =
     eligible.slice(
       start,
       start + PAGE_SIZE
@@ -484,77 +697,85 @@ function buildLeaderboardEmbed(
 
   const lines = [];
 
-  if (!pageItems.length) {
+  if (!items.length) {
     lines.push(
-      'No staff members currently have **5 or more claimed tickets**.'
+      '❌ No staff members with **5+ claimed tickets** were found.'
     );
   }
 
   for (
-    let index = 0;
-    index < pageItems.length;
-    index++
+    let i = 0;
+    i < items.length;
+    i++
   ) {
-    const position =
-      start + index + 1;
-
     const staff =
-      pageItems[index];
+      items[i];
+
+    const position =
+      start + i + 1;
 
     const member =
       guild.members.cache.get(
         staff.userId
       );
 
-    const name = member
-      ? member.toString()
-      : `<@${staff.userId}>`;
+    const mention =
+      member
+        ? member.toString()
+        : `<@${staff.userId}>`;
 
     let medal = '';
 
-    if (position === 1)
+    if (position === 1) {
       medal = '🥇 ';
-    else if (position === 2)
+    } else if (position === 2) {
       medal = '🥈 ';
-    else if (position === 3)
+    } else if (position === 3) {
       medal = '🥉 ';
+    }
 
     lines.push(
-      `${medal}**#${position}** ${name}\n` +
+      `${medal}**#${position}** ${mention}\n` +
       `> ⭐ **${staff.average.toFixed(
         2
-      )}/5** ${stars(staff.average)}\n` +
+      )}/5** ${stars(
+        staff.average
+      )}\n` +
       `> 🎫 **${staff.claims}** claimed • 📝 **${staff.reviews}** reviews`
     );
   }
 
-  return {
-    embed: new EmbedBuilder()
+  const embed =
+    new EmbedBuilder()
       .setColor(0xF8D568)
-      .setTitle('🏆 Staff Review Leaderboard')
+      .setTitle(
+        '🏆 Staff Review Leaderboard'
+      )
       .setDescription(
         lines.join('\n\n')
       )
       .addFields({
-        name: 'Ranking Requirements',
+        name:
+          'Leaderboard Requirement',
         value:
-          `Only staff with **${MIN_CLAIMS}+ claimed tickets** are shown.`,
-        inline: false,
+          `Staff must have at least **${MIN_CLAIMS} claimed tickets** to appear.`,
       })
       .setFooter({
         text:
           `Page ${
             safePage + 1
-          }/${totalPages} • All Tickets`,
+          }/${totalPages} • Normal + Merch`,
       })
-      .setTimestamp(),
+      .setTimestamp();
 
+  return {
+    embed,
     page: safePage,
     totalPages,
   };
 }
 
-function buildPaginationRow(
+function paginationRow(
   page,
   totalPages
 ) {
@@ -609,9 +830,7 @@ function buildStaffEmbed(
   return new EmbedBuilder()
     .setColor(0xF8D568)
     .setTitle(
-      `📊 Review Statistics — ${
-        member.user.username
-      }`
+      `📊 Review Statistics — ${member.user.username}`
     )
     .setThumbnail(
       member.user.displayAvatarURL({
@@ -621,22 +840,20 @@ function buildStaffEmbed(
     .addFields(
       {
         name: '🎫 Tickets Claimed',
-        value: String(
-          stats.claims
-        ),
+        value:
+          String(stats.claims),
         inline: true,
       },
       {
         name: '📝 Reviews',
-        value: String(
-          stats.reviews
-        ),
+        value:
+          String(stats.reviews),
         inline: true,
       },
       {
         name: '⭐ Average Rating',
         value:
-          stats.reviews > 0
+          stats.reviews
             ? `${stats.average.toFixed(
                 2
               )}/5 ${stars(
@@ -648,8 +865,7 @@ function buildStaffEmbed(
       {
         name: '⭐ 5 Stars',
         value:
-          `${stats.ratings[5]} ` +
-          `(${ratingBar(
+          `${stats.ratings[5]} (${percentage(
             stats.ratings[5],
             total
           )})`,
@@ -658,8 +874,7 @@ function buildStaffEmbed(
       {
         name: '⭐ 4 Stars',
         value:
-          `${stats.ratings[4]} ` +
-          `(${ratingBar(
+          `${stats.ratings[4]} (${percentage(
             stats.ratings[4],
             total
           )})`,
@@ -668,8 +883,7 @@ function buildStaffEmbed(
       {
         name: '⭐ 3 Stars',
         value:
-          `${stats.ratings[3]} ` +
-          `(${ratingBar(
+          `${stats.ratings[3]} (${percentage(
             stats.ratings[3],
             total
           )})`,
@@ -678,8 +892,7 @@ function buildStaffEmbed(
       {
         name: '⭐ 2 Stars',
         value:
-          `${stats.ratings[2]} ` +
-          `(${ratingBar(
+          `${stats.ratings[2]} (${percentage(
             stats.ratings[2],
             total
           )})`,
@@ -688,8 +901,7 @@ function buildStaffEmbed(
       {
         name: '⭐ 1 Star',
         value:
-          `${stats.ratings[1]} ` +
-          `(${ratingBar(
+          `${stats.ratings[1]} (${percentage(
             stats.ratings[1],
             total
           )})`,
@@ -698,16 +910,14 @@ function buildStaffEmbed(
     )
     .setFooter({
       text:
-        'Statistics include Normal + Merch tickets',
+        'Normal + Merch tickets',
     })
     .setTimestamp();
 }
 
-/*
-|--------------------------------------------------------------------------
-| Main command
-|--------------------------------------------------------------------------
-*/
+/* =========================================================
+   COMMAND
+========================================================= */
 
 export default {
   data: new SlashCommandBuilder()
@@ -753,17 +963,17 @@ export default {
         );
     } catch (error) {
       console.error(
-        '[Review Stats] Failed to collect statistics:',
+        '[Review Stats] Collection error:',
         error
       );
 
       return interaction.editReply({
         content:
-          '❌ I could not read the ticket/review logs. Make sure I can **View Channel** and **Read Message History** in the ticket and review log channels.',
+          '❌ Failed to read the ticket/review logs. Check the bot permissions for those channels.',
       });
     }
 
-    const menu =
+    const filterMenu =
       new StringSelectMenuBuilder()
         .setCustomId(
           'review_stats_filter'
@@ -797,20 +1007,22 @@ export default {
             .setEmoji('👤')
         );
 
-    const row =
-      new ActionRowBuilder()
-        .addComponents(menu);
-
     const message =
       await interaction.editReply({
         content:
           '**📊 Review Statistics**\nChoose which statistics you want to view:',
-        components: [row],
+        components: [
+          new ActionRowBuilder()
+            .addComponents(
+              filterMenu
+            ),
+        ],
       });
 
     const collector =
       message.createMessageComponentCollector({
-        time: 10 * 60 * 1000,
+        time:
+          10 * 60 * 1000,
       });
 
     collector.on(
@@ -827,52 +1039,22 @@ export default {
           });
         }
 
-        /*
-         * ALL STAFF
-         */
+        /* ALL STAFF */
         if (
           component.isStringSelectMenu() &&
           component.customId ===
             'review_stats_filter'
         ) {
-          const value =
-            component.values[0];
-
           if (
-            value ===
+            component.values[0] ===
             'all_staff'
           ) {
-            let page = 0;
-
-            const render = async () => {
-              const result =
-                buildLeaderboardEmbed(
-                  interaction.guild,
-                  stats,
-                  page
-                );
-
-              await component.editReply({
-                content: null,
-                embeds: [
-                  result.embed,
-                ],
-                components: [
-                  buildPaginationRow(
-                    result.page,
-                    result.totalPages
-                  ),
-                ],
-              });
-
-              page =
-                result.page;
-            };
-
             await component.deferUpdate();
 
+            let page = 0;
+
             const result =
-              buildLeaderboardEmbed(
+              buildLeaderboard(
                 interaction.guild,
                 stats,
                 page
@@ -884,129 +1066,22 @@ export default {
                 result.embed,
               ],
               components: [
-                buildPaginationRow(
+                paginationRow(
                   result.page,
                   result.totalPages
                 ),
               ],
             });
 
-            page =
-              result.page;
-
-            /*
-             * Temporary pagination collector.
-             */
-            const buttonCollector =
-              message.createMessageComponentCollector({
-                componentType:
-                  ComponentType.Button,
-                time:
-                  10 * 60 * 1000,
-              });
-
-            buttonCollector.on(
-              'collect',
-              async button => {
-                if (
-                  button.user.id !==
-                  interaction.user.id
-                ) {
-                  return button.reply({
-                    content:
-                      '❌ Only the administrator who opened this menu can use it.',
-                    ephemeral: true,
-                  });
-                }
-
-                if (
-                  button.customId ===
-                  'review_stats_close'
-                ) {
-                  buttonCollector.stop(
-                    'closed'
-                  );
-
-                  await button.deferUpdate();
-
-                  await interaction.editReply({
-                    content:
-                      'Review statistics closed.',
-                    embeds: [],
-                    components: [],
-                  });
-
-                  return;
-                }
-
-                if (
-                  button.customId ===
-                  'review_stats_previous'
-                ) {
-                  page =
-                    Math.max(
-                      0,
-                      page - 1
-                    );
-                }
-
-                if (
-                  button.customId ===
-                  'review_stats_next'
-                ) {
-                  const totalPages =
-                    Math.max(
-                      1,
-                      Math.ceil(
-                        [...stats.values()]
-                          .filter(
-                            s =>
-                              s.claims >=
-                              MIN_CLAIMS
-                          ).length /
-                          PAGE_SIZE
-                      )
-                    );
-
-                  page =
-                    Math.min(
-                      totalPages - 1,
-                      page + 1
-                    );
-                }
-
-                const updated =
-                  buildLeaderboardEmbed(
-                    interaction.guild,
-                    stats,
-                    page
-                  );
-
-                await button.update({
-                  embeds: [
-                    updated.embed,
-                  ],
-                  components: [
-                    buildPaginationRow(
-                      updated.page,
-                      updated.totalPages
-                    ),
-                  ],
-                });
-              }
-            );
-
             return;
           }
 
-          /*
-           * ONE STAFF
-           */
+          /* ONE STAFF */
           if (
-            value ===
+            component.values[0] ===
             'one_staff'
           ) {
-            const userMenu =
+            const menu =
               new UserSelectMenuBuilder()
                 .setCustomId(
                   'review_stats_staff'
@@ -1015,26 +1090,23 @@ export default {
                   'Select a staff member...'
                 );
 
-            const userRow =
-              new ActionRowBuilder()
-                .addComponents(
-                  userMenu
-                );
-
             await component.update({
               content:
-                '**👤 Staff Statistics**\nSelect the staff member you want to view:',
+                '**👤 Staff Statistics**\nSelect the staff member:',
               embeds: [],
               components: [
-                userRow,
+                new ActionRowBuilder()
+                  .addComponents(
+                    menu
+                  ),
               ],
             });
+
+            return;
           }
         }
 
-        /*
-         * STAFF SELECT
-         */
+        /* STAFF SELECT */
         if (
           component.isUserSelectMenu() &&
           component.customId ===
@@ -1044,26 +1116,28 @@ export default {
             component.values[0];
 
           const member =
-            await resolveMember(
-              interaction.guild,
+            interaction.guild.members.cache.get(
               userId
-            );
+            ) ||
+            await interaction.guild.members
+              .fetch(userId)
+              .catch(() => null);
 
           if (!member) {
             return component.reply({
               content:
-                '❌ I could not find that member in this server.',
+                '❌ Member not found.',
               ephemeral: true,
             });
           }
 
-          const staffStats =
+          const staff =
             stats.get(userId);
 
-          if (!staffStats) {
+          if (!staff) {
             return component.update({
               content:
-                `❌ ${member} has no recorded claimed tickets yet.`,
+                `❌ ${member} has no recorded claimed tickets.`,
               embeds: [],
               components: [],
             });
@@ -1074,7 +1148,7 @@ export default {
             embeds: [
               buildStaffEmbed(
                 member,
-                staffStats
+                staff
               ),
             ],
             components: [
@@ -1091,6 +1165,7 @@ export default {
                     .setStyle(
                       ButtonStyle.Secondary
                     ),
+
                   new ButtonBuilder()
                     .setCustomId(
                       'review_stats_close'
@@ -1105,50 +1180,16 @@ export default {
                 ),
             ],
           });
+
+          return;
         }
 
-        /*
-         * BACK
-         */
+        /* BACK */
         if (
           component.isButton() &&
           component.customId ===
             'review_stats_back'
         ) {
-          const newMenu =
-            new StringSelectMenuBuilder()
-              .setCustomId(
-                'review_stats_filter'
-              )
-              .setPlaceholder(
-                'Choose a statistics view...'
-              )
-              .addOptions(
-                new StringSelectMenuOptionBuilder()
-                  .setLabel(
-                    'All Staff'
-                  )
-                  .setDescription(
-                    'View the staff leaderboard'
-                  )
-                  .setValue(
-                    'all_staff'
-                  )
-                  .setEmoji('🏆'),
-
-                new StringSelectMenuOptionBuilder()
-                  .setLabel(
-                    'One Staff Member'
-                  )
-                  .setDescription(
-                    'View statistics for one staff member'
-                  )
-                  .setValue(
-                    'one_staff'
-                  )
-                  .setEmoji('👤')
-              );
-
           await component.update({
             content:
               '**📊 Review Statistics**\nChoose which statistics you want to view:',
@@ -1156,15 +1197,101 @@ export default {
             components: [
               new ActionRowBuilder()
                 .addComponents(
-                  newMenu
+                  new StringSelectMenuBuilder()
+                    .setCustomId(
+                      'review_stats_filter'
+                    )
+                    .setPlaceholder(
+                      'Choose a statistics view...'
+                    )
+                    .addOptions(
+                      new StringSelectMenuOptionBuilder()
+                        .setLabel(
+                          'All Staff'
+                        )
+                        .setDescription(
+                          'View the staff leaderboard'
+                        )
+                        .setValue(
+                          'all_staff'
+                        )
+                        .setEmoji('🏆'),
+
+                      new StringSelectMenuOptionBuilder()
+                        .setLabel(
+                          'One Staff Member'
+                        )
+                        .setDescription(
+                          'View statistics for one staff member'
+                        )
+                        .setValue(
+                          'one_staff'
+                        )
+                        .setEmoji('👤')
+                    )
                 ),
             ],
           });
+
+          return;
         }
 
-        /*
-         * CLOSE
-         */
+        /* PAGINATION */
+        if (
+          component.isButton() &&
+          (
+            component.customId ===
+              'review_stats_previous' ||
+            component.customId ===
+              'review_stats_next'
+          )
+        ) {
+          const currentFooter =
+            component.message.embeds?.[0]
+              ?.footer?.text || '';
+
+          const match =
+            currentFooter.match(
+              /Page\s+(\d+)\/(\d+)/
+            );
+
+          let page =
+            match
+              ? Number(match[1]) - 1
+              : 0;
+
+          if (
+            component.customId ===
+            'review_stats_previous'
+          ) {
+            page--;
+          } else {
+            page++;
+          }
+
+          const result =
+            buildLeaderboard(
+              interaction.guild,
+              stats,
+              page
+            );
+
+          await component.update({
+            embeds: [
+              result.embed,
+            ],
+            components: [
+              paginationRow(
+                result.page,
+                result.totalPages
+              ),
+            ],
+          });
+
+          return;
+        }
+
+        /* CLOSE */
         if (
           component.isButton() &&
           component.customId ===
@@ -1188,7 +1315,7 @@ export default {
             components: [],
           });
         } catch {
-          // Interaction already expired/deleted.
+          // Already expired.
         }
       }
     );
