@@ -437,90 +437,107 @@ export default {
         });
       }
     }
+/*
+|--------------------------------------------------------------------------
+| REMOVE
+|--------------------------------------------------------------------------
+*/
 
-    /*
-    |--------------------------------------------------------------------------
-    | REMOVE
-    |--------------------------------------------------------------------------
-    */
+if (
+  subcommand === 'remove'
+) {
+  const channels =
+    await getSocialFeedChannels(
+      interaction.client,
+      interaction.guild.id
+    );
 
-    if (
-      subcommand === 'remove'
-    ) {
-      const channels =
-        await getSocialFeedChannels(
-          interaction.client,
-          interaction.guild.id
-        );
+  if (!channels.length) {
+    return interaction.reply({
+      content:
+        '❌ There are no configured social media channels.',
+      flags:
+        MessageFlags.Ephemeral,
+    });
+  }
 
-      if (!channels.length) {
-        return interaction.reply({
-          content:
-            '❌ There are no configured social media channels.',
-          flags:
-            MessageFlags.Ephemeral,
-        });
-      }
+  const options =
+    channels
+      .slice(0, 25)
+      .map(
+        channel =>
+          new StringSelectMenuOptionBuilder()
+            /*
+             * IMPORTANT:
+             *
+             * Use the custom name/nickname entered when
+             * the channel was added.
+             *
+             * Example:
+             * /social add
+             * name: Ninja
+             * platform: Twitch
+             * channel: ninja
+             *
+             * The remove menu will show:
+             * "Ninja"
+             *
+             * NOT the Discord user's username.
+             */
+            .setLabel(
+              channel.name.slice(
+                0,
+                100
+              )
+            )
 
-      /*
-       * Discord select menus can have a maximum
-       * of 25 options.
-       */
+            /*
+             * Show the actual platform account underneath.
+             */
+            .setDescription(
+              `${platformName(channel.platform)} • ${channel.identifier}`.slice(
+                0,
+                100
+              )
+            )
 
-      const options =
-        channels
-          .slice(0, 25)
-          .map(
-            channel =>
-              new StringSelectMenuOptionBuilder()
-                .setLabel(
-                  channel.name.slice(
-                    0,
-                    100
-                  )
-                )
-                .setDescription(
-                  `${platformName(channel.platform)} • ${channel.identifier}`.slice(
-                    0,
-                    100
-                  )
-                )
-                .setValue(
-                  channel.id
-                )
-                .setEmoji(
-                  platformEmoji(
-                    channel.platform
-                  )
-                )
-          );
+            .setValue(
+              channel.id
+            )
 
-      const menu =
-        new StringSelectMenuBuilder()
-          .setCustomId(
-            `social_remove_${interaction.user.id}`
-          )
-          .setPlaceholder(
-            'Select a channel to remove...'
-          )
-          .addOptions(
-            options
-          );
+            .setEmoji(
+              platformEmoji(
+                channel.platform
+              )
+            )
+      );
 
-      return interaction.reply({
-        content:
-          '**🗑️ Remove Social Channel**\nSelect the channel you want to remove:',
-        components: [
-          new ActionRowBuilder()
-            .addComponents(
-              menu
-            ),
-        ],
-        flags:
-          MessageFlags.Ephemeral,
-      });
-    }
+  const menu =
+    new StringSelectMenuBuilder()
+      .setCustomId(
+        `social_remove_${interaction.user.id}`
+      )
+      .setPlaceholder(
+        'Select a channel to remove...'
+      )
+      .addOptions(
+        options
+      );
 
+  return interaction.reply({
+    content:
+      '**🗑️ Remove Social Channel**\n' +
+      'Select the configured channel using its custom name:',
+    components: [
+      new ActionRowBuilder()
+        .addComponents(
+          menu
+        ),
+    ],
+    flags:
+      MessageFlags.Ephemeral,
+  });
+}
     /*
     |--------------------------------------------------------------------------
     | VIEW
