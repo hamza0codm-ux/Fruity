@@ -57,7 +57,7 @@ export const NORMAL_TICKET_CONFIG = {
 
     color: 0xF8D568,
 
-    imageUrl: null,
+    imageUrl:https://media.discordapp.net/attachments/1543682115798044853/1544034109964296242/2Q.png?ex=6a970952&is=6a95b7d2&hm=67174ab25e0235ca34633019fb1e84d98da0df2ac8f6c376a46d14ad0fd70494&=&format=webp&quality=lossless&width=768&height=256,
 
     panelTitle: 'Fruity Tickets',
 
