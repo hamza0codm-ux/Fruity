@@ -4,9 +4,6 @@ import {
   ActionRowBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
-  RoleSelectMenuBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   MessageFlags,
   EmbedBuilder,
 } from 'discord.js';
@@ -25,15 +22,39 @@ import {
 */
 
 function platformEmoji(platform) {
-  return platform === 'twitch'
-    ? '🟣'
-    : '🔴';
+  switch (
+    String(platform || '').toLowerCase()
+  ) {
+    case 'twitch':
+      return '🟣';
+
+    case 'youtube':
+      return '🔴';
+
+    case 'tiktok':
+      return '⚫';
+
+    default:
+      return '📡';
+  }
 }
 
 function platformName(platform) {
-  return platform === 'twitch'
-    ? 'Twitch'
-    : 'YouTube';
+  switch (
+    String(platform || '').toLowerCase()
+  ) {
+    case 'twitch':
+      return 'Twitch';
+
+    case 'youtube':
+      return 'YouTube';
+
+    case 'tiktok':
+      return 'TikTok';
+
+    default:
+      return 'Unknown';
+  }
 }
 
 function buildChannelListEmbed(
@@ -43,9 +64,12 @@ function buildChannelListEmbed(
   const embed =
     new EmbedBuilder()
       .setColor(0xF8D568)
-      .setTitle('📡 Social Media Live Channels')
+      .setTitle(
+        '📡 Social Media Live Channels'
+      )
       .setFooter({
-        text: `Live role: ${LIVE_ROLE_ID}`,
+        text:
+          `Live role: ${LIVE_ROLE_ID}`,
       })
       .setTimestamp();
 
@@ -72,6 +96,11 @@ function buildChannelListEmbed(
         ? `<@&${channel.pingRoleId}>`
         : 'No ping role';
 
+    const creator =
+      channel.discordUserId
+        ? `<@${channel.discordUserId}>`
+        : '⚠️ Not linked';
+
     const liveStatus =
       channel.isLive
         ? '🟢 **LIVE**'
@@ -80,6 +109,7 @@ function buildChannelListEmbed(
     lines.push(
       `**${i + 1}. ${channel.name}**\n` +
       `${platformEmoji(channel.platform)} ${platformName(channel.platform)} • \`${channel.identifier}\`\n` +
+      `👤 Creator: ${creator}\n` +
       `${liveStatus} • 🔔 ${ping}`
     );
   }
@@ -109,7 +139,7 @@ export default {
       )
 
       /*
-       * /social add channel
+       * /social add
        */
 
       .addSubcommand(
@@ -117,17 +147,27 @@ export default {
           sub
             .setName('add')
             .setDescription(
-              'Add a Twitch or YouTube channel.'
+              'Add a Twitch, YouTube, or TikTok channel.'
             )
+
+            /*
+             * Friendly name
+             */
+
             .addStringOption(
               option =>
                 option
                   .setName('name')
                   .setDescription(
-                    'A name to easily identify this channel.'
+                    'A name to easily identify this creator.'
                   )
                   .setRequired(true)
             )
+
+            /*
+             * Platform
+             */
+
             .addStringOption(
               option =>
                 option
@@ -144,31 +184,62 @@ export default {
                     {
                       name: 'YouTube',
                       value: 'youtube',
+                    },
+                    {
+                      name: 'TikTok',
+                      value: 'tiktok',
                     }
                   )
             )
+
+            /*
+             * Social media username / channel
+             */
+
             .addStringOption(
               option =>
                 option
                   .setName('channel')
                   .setDescription(
-                    'Twitch username or YouTube channel ID/handle.'
+                    'Twitch username, YouTube channel ID/handle, or TikTok username.'
                   )
                   .setRequired(true)
             )
+
+            /*
+             * Discord member who owns the social account.
+             *
+             * This is what the live role will be
+             * added to and removed from.
+             */
+
+            .addUserOption(
+              option =>
+                option
+                  .setName('creator')
+                  .setDescription(
+                    'The Discord member who should receive the live role.'
+                  )
+                  .setRequired(true)
+            )
+
+            /*
+             * Optional notification role.
+             */
+
             .addRoleOption(
               option =>
                 option
                   .setName('ping_role')
                   .setDescription(
-                    'Role to mention when this channel goes live. Optional.'
+                    'Role to mention when this creator goes live. Optional.'
                   )
                   .setRequired(false)
             )
       )
 
       /*
-       * /social remove channel
+       * /social remove
        */
 
       .addSubcommand(
@@ -192,6 +263,12 @@ export default {
               'View all configured social media channels.'
             )
       ),
+
+  /*
+  |--------------------------------------------------------------------------
+  | Execute
+  |--------------------------------------------------------------------------
+  */
 
   async execute(
     interaction
@@ -239,13 +316,19 @@ export default {
           true
         );
 
+      const creator =
+        interaction.options.getUser(
+          'creator',
+          true
+        );
+
       const pingRole =
         interaction.options.getRole(
           'ping_role'
         );
 
       /*
-       * Don't allow @everyone to be selected.
+       * Don't allow @everyone.
        */
 
       if (
@@ -262,7 +345,7 @@ export default {
       }
 
       /*
-       * Bot must be able to mention the role.
+       * Don't allow managed roles.
        */
 
       if (
@@ -272,6 +355,25 @@ export default {
         return interaction.reply({
           content:
             '❌ That role is managed by an integration and cannot be used.',
+          flags:
+            MessageFlags.Ephemeral,
+        });
+      }
+
+      /*
+       * Make sure the selected creator is
+       * actually in this server.
+       */
+
+      const creatorMember =
+        await interaction.guild.members
+          .fetch(creator.id)
+          .catch(() => null);
+
+      if (!creatorMember) {
+        return interaction.reply({
+          content:
+            '❌ That Discord user is not a member of this server.',
           flags:
             MessageFlags.Ephemeral,
         });
@@ -291,6 +393,16 @@ export default {
               name,
               platform,
               identifier,
+
+              /*
+               * IMPORTANT:
+               * This is the Discord account that
+               * receives the live role.
+               */
+
+              discordUserId:
+                creator.id,
+
               pingRoleId:
                 pingRole?.id ||
                 null,
@@ -302,6 +414,7 @@ export default {
             `✅ Added **${channel.name}**.\n\n` +
             `${platformEmoji(channel.platform)} Platform: **${platformName(channel.platform)}**\n` +
             `📺 Channel: \`${channel.identifier}\`\n` +
+            `👤 Discord creator: <@${channel.discordUserId}>\n` +
             `🔔 Ping role: ${
               channel.pingRoleId
                 ? `<@&${channel.pingRoleId}>`
@@ -317,7 +430,10 @@ export default {
 
         return interaction.editReply({
           content:
-            `❌ ${error.message || 'Failed to add channel.'}`,
+            `❌ ${
+              error.message ||
+              'Failed to add channel.'
+            }`,
         });
       }
     }
@@ -345,6 +461,11 @@ export default {
             MessageFlags.Ephemeral,
         });
       }
+
+      /*
+       * Discord select menus can have a maximum
+       * of 25 options.
+       */
 
       const options =
         channels
@@ -432,11 +553,6 @@ export default {
   |--------------------------------------------------------------------------
   | Component handler
   |--------------------------------------------------------------------------
-  |
-  | Your existing command handler may use a separate interaction
-  | handler. This function is exported here so it can be called
-  | from there if your command architecture supports it.
-  |
   */
 
   async handleComponent(
@@ -501,20 +617,41 @@ export default {
       }
 
       /*
-       * If the creator was live, remove the fixed live role
-       * from the guild member if possible.
-       *
-       * We do NOT remove the optional ping role.
+       * If the creator was live, immediately remove
+       * the fixed live role.
        */
 
       if (
-        removed.isLive
+        removed.discordUserId
       ) {
-        /*
-         * The live monitor will also clean this up,
-         * but clearing the state here prevents the removed
-         * channel from being treated as live on the next check.
-         */
+        const member =
+          await interaction.guild.members
+            .fetch(
+              removed.discordUserId
+            )
+            .catch(
+              () => null
+            );
+
+        if (
+          member &&
+          member.roles.cache.has(
+            LIVE_ROLE_ID
+          )
+        ) {
+          await member.roles
+            .remove(
+              LIVE_ROLE_ID,
+              `Removed social live channel: ${removed.name}`
+            )
+            .catch(
+              error =>
+                console.error(
+                  '[Social Feed] Failed removing live role after channel removal:',
+                  error
+                )
+            );
+        }
       }
 
       await interaction.editReply({
