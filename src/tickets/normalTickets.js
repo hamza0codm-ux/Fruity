@@ -59,7 +59,7 @@ export const NORMAL_TICKET_CONFIG = {
 
     imageUrl: null,
 
-    panelTitle: 'Normal Tickets',
+    panelTitle: 'Fruity Tickets',
 
     panelDescription:
         'Need help with FruityINC? Select the option below that best matches what you need.',
