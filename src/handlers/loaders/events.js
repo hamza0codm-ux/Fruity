@@ -11,7 +11,7 @@ export default async function loadEvents(client) {
     const eventsPath = join(__dirname, '../../events');
     const eventFiles = await readdir(eventsPath).then(files => files.filter(file => file.endsWith('.js')));
 
-    logger.info(`Found ${eventFiles.length} event files to load`);
+   logger.info(`🔥 EVENT LOADER: Found ${eventFiles.length} event files`);
 
     for (const file of eventFiles) {
         const filePath = join(eventsPath, file);
