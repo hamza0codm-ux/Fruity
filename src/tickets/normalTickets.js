@@ -12,11 +12,11 @@ import {
     SectionBuilder,
     SeparatorBuilder,
     SeparatorSpacingSize,
-    StringSelectMenuBuilder,
-    StringSelectMenuOptionBuilder,
     TextDisplayBuilder,
     TextInputBuilder,
     TextInputStyle,
+    MediaGalleryBuilder,
+    MediaGalleryItemBuilder,
     MessageFlags,
 } from 'discord.js';
 
@@ -57,7 +57,11 @@ export const NORMAL_TICKET_CONFIG = {
 
     color: 0xF8D568,
 
-    imageUrl: null,
+    /*
+     * Fruity Tickets panel image
+     */
+    imageUrl:
+        'https://media.discordapp.net/attachments/1543682115798044853/1544048276439830708/content.png?ex=6a971684&is=6a95c504&hm=821c388fb27d6dd929e11bfcdd5c5dd1949198bec6adfbcdbd2dbb46c164261d&=&format=webp&quality=lossless&width=768&height=392',
 
     panelTitle: 'Fruity Tickets',
 
@@ -102,6 +106,7 @@ function getNormalButton(buttonId) {
     );
 }
 
+
 function sanitizeChannelName(value) {
     return String(value || '')
         .toLowerCase()
@@ -111,6 +116,7 @@ function sanitizeChannelName(value) {
         .replace(/^-|-$/g, '')
         .slice(0, 90);
 }
+
 
 function getPriorityInfo(priority = 'none') {
     return (
@@ -123,6 +129,7 @@ function getPriorityInfo(priority = 'none') {
     );
 }
 
+
 function stripPriorityFromName(name) {
     return String(name || '')
         .replace(
@@ -132,8 +139,10 @@ function stripPriorityFromName(name) {
         .trim();
 }
 
+
 function applyPriorityToName(name, priority) {
-    const cleanName = stripPriorityFromName(name);
+    const cleanName =
+        stripPriorityFromName(name);
 
     if (
         !priority ||
@@ -163,10 +172,9 @@ export function buildNormalTicketPanel() {
                 NORMAL_TICKET_CONFIG.color
             );
 
+
     /*
      * HEADER
-     *
-     * Large title and description.
      */
     container.addTextDisplayComponents(
         new TextDisplayBuilder().setContent(
@@ -174,6 +182,25 @@ export function buildNormalTicketPanel() {
             NORMAL_TICKET_CONFIG.panelDescription
         )
     );
+
+
+    /*
+     * FRUITY TICKETS IMAGE
+     */
+    if (NORMAL_TICKET_CONFIG.imageUrl) {
+        container.addMediaGalleryComponents(
+            new MediaGalleryBuilder().addItems(
+                new MediaGalleryItemBuilder()
+                    .setURL(
+                        NORMAL_TICKET_CONFIG.imageUrl
+                    )
+                    .setDescription(
+                        'Fruity Tickets'
+                    )
+            )
+        );
+    }
+
 
     /*
      * LARGE DIVIDER
@@ -185,6 +212,7 @@ export function buildNormalTicketPanel() {
             )
             .setDivider(true)
     );
+
 
     /*
      * TICKET OPTIONS
@@ -221,6 +249,7 @@ export function buildNormalTicketPanel() {
             section
         );
 
+
         /*
          * LARGE DIVIDER AFTER EACH OPTION
          */
@@ -233,6 +262,7 @@ export function buildNormalTicketPanel() {
         );
     }
 
+
     /*
      * FOOTER
      */
@@ -241,6 +271,7 @@ export function buildNormalTicketPanel() {
             '🎫 Select the button that best matches your request to open a Fruity support ticket.'
         )
     );
+
 
     return container;
 }
@@ -269,10 +300,12 @@ export async function reconcileNormalTicketPanel(
             );
         }
 
+
         const messages =
             await channel.messages.fetch({
                 limit: 50,
             });
+
 
         const existing =
             messages.find(message => {
@@ -290,9 +323,11 @@ export async function reconcileNormalTicketPanel(
                 );
             });
 
+
         const components = [
             buildNormalTicketPanel(),
         ];
+
 
         if (existing) {
             await existing.edit({
@@ -315,6 +350,7 @@ export async function reconcileNormalTicketPanel(
                 '[Normal Tickets] Panel created.'
             );
         }
+
     } catch (error) {
         logger.error(
             '[Normal Tickets] Failed to reconcile panel:',
@@ -335,6 +371,7 @@ export async function showNormalTicketModal(
     const button =
         getNormalButton(buttonId);
 
+
     if (!button) {
         await interaction.reply({
             content:
@@ -346,6 +383,7 @@ export async function showNormalTicketModal(
         return;
     }
 
+
     const modal =
         new ModalBuilder()
             .setCustomId(
@@ -354,6 +392,7 @@ export async function showNormalTicketModal(
             .setTitle(
                 button.label
             );
+
 
     const reason =
         new TextInputBuilder()
@@ -370,10 +409,14 @@ export async function showNormalTicketModal(
             .setRequired(true)
             .setMaxLength(1000);
 
+
     modal.addComponents(
         new ActionRowBuilder()
-            .addComponents(reason)
+            .addComponents(
+                reason
+            )
     );
+
 
     await interaction.showModal(
         modal
@@ -393,11 +436,13 @@ export async function createNormalTicket(
     const button =
         getNormalButton(buttonId);
 
+
     if (!button) {
         throw new Error(
             'Invalid normal ticket button.'
         );
     }
+
 
     const guild =
         interaction.guild;
@@ -405,11 +450,13 @@ export async function createNormalTicket(
     const member =
         interaction.member;
 
+
     const openCount =
         await getOpenTicketCountForUser(
             guild.id,
             member.id
         );
+
 
     if (openCount >= 3) {
         throw new Error(
@@ -417,10 +464,12 @@ export async function createNormalTicket(
         );
     }
 
+
     const category =
         await guild.channels.fetch(
             NORMAL_TICKET_CONFIG.categoryId
         );
+
 
     if (
         !category ||
@@ -431,21 +480,25 @@ export async function createNormalTicket(
         );
     }
 
+
     const ticketNumber =
         await incrementTicketCounter(
             guild.id
         );
+
 
     const baseName =
         sanitizeChannelName(
             `${button.label}-${member.user.username}`
         );
 
+
     let ticketName =
         baseName;
 
     let number =
         1;
+
 
     while (
         guild.channels.cache.some(
@@ -460,12 +513,18 @@ export async function createNormalTicket(
             `${baseName}-${number}`;
     }
 
+
     ticketName =
-        ticketName.slice(0, 100);
+        ticketName.slice(
+            0,
+            100
+        );
+
 
     const channel =
         await guild.channels.create({
-            name: ticketName,
+            name:
+                ticketName,
 
             type:
                 ChannelType.GuildText,
@@ -508,6 +567,7 @@ export async function createNormalTicket(
                 },
             ],
         });
+
 
     const ticketData = {
         id:
@@ -561,14 +621,17 @@ export async function createNormalTicket(
             new Date().toISOString(),
     };
 
+
     await saveTicketData(
         guild.id,
         channel.id,
         ticketData
     );
 
+
     const priority =
         getPriorityInfo('none');
+
 
     const embed =
         new EmbedBuilder()
@@ -620,59 +683,105 @@ export async function createNormalTicket(
             )
             .setTimestamp();
 
+
+    /*
+     * TICKET CONTROLS
+     */
     const controls =
         new ActionRowBuilder()
             .addComponents(
+
+                /*
+                 * CLAIM
+                 */
                 new ButtonBuilder()
                     .setCustomId(
                         'ticket_claim'
                     )
-                    .setLabel('Claim')
-                    .setEmoji('🙋')
+                    .setLabel(
+                        'Claim'
+                    )
+                    .setEmoji(
+                        '🙋'
+                    )
                     .setStyle(
                         ButtonStyle.Primary
                     ),
 
+
+                /*
+                 * PRIORITY
+                 *
+                 * IMPORTANT:
+                 * This MUST match:
+                 *
+                 * src/interactions/buttons/ticket/priority.js
+                 *
+                 * name: 'ticket_priority'
+                 */
                 new ButtonBuilder()
                     .setCustomId(
-                        'ticket_priority_menu'
+                        'ticket_priority'
                     )
-                    .setLabel('Priority')
-                    .setEmoji('💼')
+                    .setLabel(
+                        'Priority'
+                    )
+                    .setEmoji(
+                        '🎯'
+                    )
                     .setStyle(
                         ButtonStyle.Secondary
                     ),
 
+
+                /*
+                 * CLOSE
+                 */
                 new ButtonBuilder()
                     .setCustomId(
                         'ticket_close'
                     )
-                    .setLabel('Close')
-                    .setEmoji('🔒')
+                    .setLabel(
+                        'Close'
+                    )
+                    .setEmoji(
+                        '🔒'
+                    )
                     .setStyle(
                         ButtonStyle.Danger
                     )
             );
+
 
     await channel.send({
         content:
             member.toString(),
 
         embeds:
-            [embed],
+            [
+                embed
+            ],
 
         components:
-            [controls],
+            [
+                controls
+            ],
 
         allowedMentions: {
             users:
-                [member.id],
+                [
+                    member.id
+                ],
 
             roles:
                 [],
         },
     });
 
+
+    /*
+     * TICKET WELCOME MESSAGE
+     */
     await channel.send({
         embeds: [
             new EmbedBuilder()
@@ -685,6 +794,7 @@ export async function createNormalTicket(
                 ),
         ],
     });
+
 
     return {
         channel,
@@ -709,6 +819,7 @@ export const normalTicketCreateButton = {
         const buttonId =
             args[0];
 
+
         await showNormalTicketModal(
             interaction,
             buttonId
@@ -731,12 +842,14 @@ export const normalTicketModal = {
         const buttonId =
             interaction.customId.split(':')[1];
 
+
         const reason =
             interaction.fields
                 .getTextInputValue(
                     'reason'
                 )
                 .trim();
+
 
         if (!reason) {
             await interaction.reply({
@@ -749,10 +862,12 @@ export const normalTicketModal = {
             return;
         }
 
+
         await interaction.deferReply({
             flags:
                 MessageFlags.Ephemeral,
         });
+
 
         try {
             const result =
@@ -762,15 +877,18 @@ export const normalTicketModal = {
                     reason
                 );
 
+
             await interaction.editReply({
                 content:
                     `✅ Your ticket has been created: ${result.channel}`,
             });
+
         } catch (error) {
             logger.error(
                 '[Normal Tickets] Ticket creation failed:',
                 error
             );
+
 
             await interaction.editReply({
                 content:
