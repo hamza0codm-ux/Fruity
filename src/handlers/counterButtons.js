@@ -1,69 +1,105 @@
-import { MessageFlags } from 'discord.js';
-import { createEmbed, successEmbed } from '../utils/embeds.js';
-import { performDeletionByCounterId } from '../commands/ServerStats/modules/serverstats_delete.js';
+import { createEmbed } from '../utils/embeds.js';
 import { logger } from '../utils/logger.js';
-import { ErrorTypes, replyUserError, handleInteractionError } from '../utils/errorHandler.js';
+import {
+  ErrorTypes,
+  replyUserError,
+  handleInteractionError,
+} from '../utils/errorHandler.js';
 
 export const counterDeleteActionHandler = {
   name: 'counter-delete',
+
   async execute(interaction, client, args = []) {
     try {
-      
-      try {
-        await interaction.deferUpdate();
-      } catch (error) {
-        logger.error("Failed to defer button interaction:", error);
+      if (!interaction.inGuild()) {
+        await replyUserError(interaction, {
+          type: ErrorTypes.UNKNOWN,
+          message:
+            'This action can only be used in a server.',
+        }).catch(() => {});
+
         return;
       }
 
       const [action, counterId, ownerId] = args;
 
-      if (!interaction.inGuild()) {
-        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'This action can only be used in a server.' }).catch(logger.error);
+      if (ownerId && interaction.user.id !== ownerId) {
+        await replyUserError(interaction, {
+          type: ErrorTypes.UNKNOWN,
+          message:
+            'Only the user who initiated this deletion can use these buttons.',
+        }).catch(() => {});
+
         return;
       }
 
       if (!action || !counterId) {
-        await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: 'Counter delete action data is missing.' }).catch(logger.error);
-        return;
-      }
+        await replyUserError(interaction, {
+          type: ErrorTypes.VALIDATION,
+          message:
+            'Counter delete action data is missing.',
+        }).catch(() => {});
 
-      if (ownerId && interaction.user.id !== ownerId) {
-        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'Only the user who initiated this deletion can use these buttons.' }).catch(logger.error);
         return;
       }
 
       if (action === 'cancel') {
+        await interaction.deferUpdate().catch(() => {});
+
         await interaction.editReply({
-          embeds: [createEmbed({
-            title: '❌ Cancelled',
-            description: 'Counter deletion cancelled.',
-            color: 'error'
-          })],
-          components: []
-        }).catch(logger.error);
+          embeds: [
+            createEmbed({
+              title: '❌ Cancelled',
+              description:
+                'Counter deletion cancelled.',
+              color: 'error',
+            }),
+          ],
+          components: [],
+        }).catch(() => {});
+
         return;
       }
 
-      if (action !== 'confirm') {
-        await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: 'Unknown counter delete action.' }).catch(logger.error);
+      /*
+       * The original counter deletion implementation depended on
+       * src/commands/ServerStats/modules/serverstats_delete.js,
+       * which no longer exists.
+       *
+       * We intentionally fail gracefully instead of importing a
+       * missing module and preventing this handler from loading.
+       */
+      if (action === 'confirm') {
+        await replyUserError(interaction, {
+          type: ErrorTypes.UNKNOWN,
+          message:
+            'The counter deletion system is currently unavailable because its ServerStats module was removed.',
+        }).catch(() => {});
+
+        logger.warn(
+          `Counter deletion requested for ${counterId}, but ServerStats deletion module is unavailable.`
+        );
+
         return;
       }
 
-      const { message } = await performDeletionByCounterId(client, interaction.guild, counterId);
-
-      await interaction.editReply({
-        embeds: [successEmbed(message)],
-        components: []
-      }).catch(logger.error);
+      await replyUserError(interaction, {
+        type: ErrorTypes.VALIDATION,
+        message:
+          'Unknown counter delete action.',
+      }).catch(() => {});
     } catch (error) {
-      await handleInteractionError(interaction, error, {
-        type: 'button',
-        handler: 'counter_delete',
-        customId: interaction.customId,
-      });
+      await handleInteractionError(
+        interaction,
+        error,
+        {
+          type: 'button',
+          handler: 'counter_delete',
+          customId: interaction.customId,
+        }
+      );
     }
-  }
+  },
 };
 
 export default counterDeleteActionHandler;
