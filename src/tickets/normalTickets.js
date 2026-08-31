@@ -233,6 +233,15 @@ export function buildNormalTicketPanel() {
         );
     }
 
+    /*
+     * FOOTER
+     */
+    container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+            '🎫 Select the button that best matches your request to open a Fruity support ticket.'
+        )
+    );
+
     return container;
 }
 
