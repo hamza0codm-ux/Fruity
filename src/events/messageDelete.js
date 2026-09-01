@@ -19,40 +19,33 @@ import {
 } from '../utils/logging/logEmbeds.js';
 
 
-const MESSAGE_LOG_CHANNEL =
-    '1542858198233653348';
-
-const MAX_LOGGED_MESSAGE_CONTENT_LENGTH =
-    1024;
+const MAX_CONTENT = 1024;
 
 
 export default {
 
-    name: Events.MessageDelete,
+    name:
+        Events.MessageDelete,
 
-    once: false,
+    once:
+        false,
 
     async execute(message) {
 
         try {
 
-            /*
-             * Ignore DMs.
-             */
             if (!message.guild) {
                 return;
             }
 
 
             /*
-             * =====================================
-             * REACTION ROLE CLEANUP
-             * =====================================
+             * Reaction-role cleanup
              */
 
             try {
 
-                const reactionRoleData =
+                const reactionRole =
                     await getReactionRoleMessage(
                         message.client,
                         message.guild.id,
@@ -60,7 +53,7 @@ export default {
                     );
 
 
-                if (reactionRoleData) {
+                if (reactionRole) {
 
                     await deleteReactionRoleMessage(
                         message.client,
@@ -69,81 +62,59 @@ export default {
                     );
 
 
-                    logger.info(
-                        `Cleaned up reaction role database entry for deleted message ${message.id} in guild ${message.guild.id}`
-                    );
+                    await logEvent({
 
+                        client:
+                            message.client,
 
-                    try {
+                        guildId:
+                            message.guild.id,
 
-                        await logEvent({
+                        eventType:
+                            EVENT_TYPES.REACTION_ROLE_DELETE,
 
-                            client:
-                                message.client,
+                        data: {
 
-                            guildId:
-                                message.guild.id,
+                            title:
+                                '🗑️ Reaction Role Removed',
 
-                            eventType:
-                                EVENT_TYPES.REACTION_ROLE_DELETE,
+                            lines: [
 
-                            data: {
+                                formatLogLine(
+                                    'Channel',
+                                    message.channel
+                                        ? `${message.channel} • ${message.channel.name}`
+                                        : 'Unknown'
+                                ),
 
-                                title:
-                                    '🗑️ Reaction Role Removed',
+                                formatLogLine(
+                                    'Message ID',
+                                    `\`${message.id}\``
+                                ),
 
-                                lines: [
+                                formatLogLine(
+                                    'Cleanup',
+                                    'Database entry removed automatically'
+                                ),
+                            ],
 
-                                    formatLogLine(
-                                        'Channel',
-                                        message.channel
-                                            ? `${message.channel} • ${message.channel.name}`
-                                            : 'Unknown'
-                                    ),
-
-                                    formatLogLine(
-                                        'Message ID',
-                                        `\`${message.id}\``
-                                    ),
-
-                                    formatLogLine(
-                                        'Cleanup',
-                                        'Database entry removed automatically'
-                                    ),
-                                ],
-
-                                quoted: false,
-                            },
-
-                            channelId:
-                                MESSAGE_LOG_CHANNEL,
-                        });
-
-                    } catch (logCleanupError) {
-
-                        logger.warn(
-                            'Failed to log reaction role cleanup:',
-                            logCleanupError
-                        );
-                    }
+                            quoted:
+                                false,
+                        },
+                    });
                 }
 
-            } catch (reactionRoleCleanupError) {
+            } catch (error) {
 
                 logger.warn(
-                    `Failed to clean up reaction role data for deleted message ${message.id}:`,
-                    reactionRoleCleanupError
+                    'Reaction-role cleanup failed:',
+                    error
                 );
             }
 
 
             /*
-             * =====================================
-             * IGNORE BOT MESSAGES
-             * =====================================
-             *
-             * This prevents the bot from logging
-             * its own messages.
+             * Don't log bot messages.
              */
 
             if (message.author?.bot) {
@@ -151,58 +122,36 @@ export default {
             }
 
 
-            /*
-             * =====================================
-             * BASIC MESSAGE INFORMATION
-             * =====================================
-             */
+            const lines = [
 
-            const metaLines = [];
-
-
-            metaLines.push(
                 formatLogLine(
                     'Channel',
                     message.channel
                         ? `${message.channel} • ${message.channel.name}`
                         : 'Unknown'
-                )
-            );
+                ),
 
-
-            metaLines.push(
                 formatLogLine(
                     'Message ID',
                     `\`${message.id}\``
-                )
-            );
+                ),
 
-
-            metaLines.push(
                 formatLogLine(
                     'Author',
                     message.author
                         ? `${message.author} • ${message.author.tag}`
-                        : 'Unknown / unavailable'
-                )
-            );
+                        : 'Unknown'
+                ),
+            ];
 
-
-            /*
-             * message.createdTimestamp can be
-             * unavailable for partial messages.
-             */
 
             if (
-                message.createdTimestamp &&
-                !Number.isNaN(
-                    message.createdTimestamp
-                )
+                message.createdTimestamp
             ) {
 
-                metaLines.push(
+                lines.push(
                     formatLogLine(
-                        'Message created',
+                        'Created',
                         `<t:${Math.floor(
                             message.createdTimestamp / 1000
                         )}:R>`
@@ -211,42 +160,11 @@ export default {
             }
 
 
-            /*
-             * =====================================
-             * MESSAGE CONTENT
-             * =====================================
-             */
-
-            let messageBody = null;
-
-
-            if (message.content) {
-
-                messageBody =
-                    message.content.length >
-                    MAX_LOGGED_MESSAGE_CONTENT_LENGTH
-
-                        ? `${message.content.substring(
-                            0,
-                            MAX_LOGGED_MESSAGE_CONTENT_LENGTH - 3
-                        )}...`
-
-                        : message.content;
-            }
-
-
-            /*
-             * =====================================
-             * ATTACHMENTS
-             * =====================================
-             */
-
             if (
-                message.attachments &&
-                message.attachments.size > 0
+                message.attachments?.size
             ) {
 
-                metaLines.push(
+                lines.push(
                     formatLogLine(
                         'Attachments',
                         String(
@@ -257,33 +175,23 @@ export default {
             }
 
 
-            /*
-             * =====================================
-             * EMBEDS
-             * =====================================
-             */
+            let content =
+                message.content ||
+                '*(message content unavailable)*';
+
 
             if (
-                message.embeds &&
-                message.embeds.length > 0
+                content.length >
+                MAX_CONTENT
             ) {
 
-                metaLines.push(
-                    formatLogLine(
-                        'Embeds',
-                        String(
-                            message.embeds.length
-                        )
-                    )
-                );
+                content =
+                    `${content.substring(
+                        0,
+                        MAX_CONTENT - 3
+                    )}...`;
             }
 
-
-            /*
-             * =====================================
-             * LOG DELETED MESSAGE
-             * =====================================
-             */
 
             await logEvent({
 
@@ -301,43 +209,32 @@ export default {
                     title:
                         '🗑️ Message Deleted',
 
-                    lines:
-                        metaLines,
+                    lines,
 
-                    quoted: false,
+                    quoted:
+                        false,
 
                     section: {
 
                         title:
-                            'Deleted Message',
+                            'Message',
 
                         body:
-                            messageBody ||
-                            '*(message content unavailable)*',
+                            content,
                     },
 
                     userId:
-                        message.author?.id ||
-                        null,
+                        message.author?.id,
 
                     channelId:
-                        message.channel?.id ||
-                        null,
+                        message.channel?.id,
                 },
-
-                /*
-                 * Force the message logging
-                 * destination.
-                 */
-                channelId:
-                    MESSAGE_LOG_CHANNEL,
             });
-
 
         } catch (error) {
 
             logger.error(
-                'Error in messageDelete event:',
+                'Error in messageDelete:',
                 error
             );
         }
