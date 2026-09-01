@@ -31,9 +31,11 @@ export default {
                 return;
             }
 
+
             const changes = [];
 
 
+            // Name
             if (
                 oldRole.name !==
                 newRole.name
@@ -48,6 +50,7 @@ export default {
             }
 
 
+            // Colour
             if (
                 oldRole.hexColor !==
                 newRole.hexColor
@@ -62,6 +65,7 @@ export default {
             }
 
 
+            // Hoisted
             if (
                 oldRole.hoist !==
                 newRole.hoist
@@ -76,6 +80,7 @@ export default {
             }
 
 
+            // Mentionable
             if (
                 oldRole.mentionable !==
                 newRole.mentionable
@@ -90,6 +95,7 @@ export default {
             }
 
 
+            // Permissions
             if (
                 oldRole.permissions.bitfield !==
                 newRole.permissions.bitfield
@@ -104,20 +110,17 @@ export default {
             }
 
 
-            if (
-                oldRole.position !==
-                newRole.position
-            ) {
-
-                changes.push(
-                    formatLogLine(
-                        'Position',
-                        `${oldRole.position} → ${newRole.position}`
-                    )
-                );
-            }
+            /*
+             * IMPORTANT:
+             * Role position changes are intentionally
+             * NOT logged.
+             *
+             * Discord fires GuildRoleUpdate when a role
+             * is moved, so we simply don't check position.
+             */
 
 
+            // Nothing useful changed
             if (changes.length === 0) {
                 return;
             }
@@ -137,7 +140,7 @@ export default {
                 data: {
 
                     title:
-                        '🎭 Role Updated',
+                        '🎭 Role Edited',
 
                     lines: [
 
@@ -154,9 +157,11 @@ export default {
                         ...changes,
                     ],
 
-                    quoted: false,
+                    quoted:
+                        false,
                 },
             });
+
 
         } catch (error) {
 
