@@ -1,55 +1,179 @@
 import { Events } from 'discord.js';
-import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
-import { logger } from '../utils/logger.js';
-import { formatLogLine } from '../utils/logging/logEmbeds.js';
 
-const MAX_LOGGED_EDIT_CONTENT_LENGTH = 512;
+import {
+    logEvent,
+    EVENT_TYPES,
+} from '../services/loggingService.js';
+
+import {
+    logger,
+} from '../utils/logger.js';
+
+import {
+    formatLogLine,
+} from '../utils/logging/logEmbeds.js';
+
+
+const MAX_CONTENT = 512;
+
 
 export default {
-  name: Events.MessageUpdate,
-  once: false,
 
-  async execute(oldMessage, newMessage) {
-    try {
-      if (!newMessage.guild || newMessage.author?.bot) return;
+    name:
+        Events.MessageUpdate,
 
-      if (oldMessage.content === newMessage.content) return;
+    once:
+        false,
 
-      const metaLines = [
-        formatLogLine('Channel', newMessage.channel ? `${newMessage.channel.name} ${newMessage.channel.toString()}` : 'Unknown'),
-        formatLogLine('Message ID', `\`${newMessage.id}\``),
-        formatLogLine('Message author', newMessage.author ? newMessage.author.toString() : 'Unknown'),
-        formatLogLine('Message created', `<t:${Math.floor(newMessage.createdTimestamp / 1000)}:R>`),
-      ];
+    async execute(
+        oldMessage,
+        newMessage
+    ) {
 
-      const oldContent = oldMessage.content || '*(empty message)*';
-      const newContent = newMessage.content || '*(empty message)*';
-      const oldContentTruncated = oldContent.length > MAX_LOGGED_EDIT_CONTENT_LENGTH
-        ? `${oldContent.substring(0, MAX_LOGGED_EDIT_CONTENT_LENGTH - 3)}...`
-        : oldContent;
-      const newContentTruncated = newContent.length > MAX_LOGGED_EDIT_CONTENT_LENGTH
-        ? `${newContent.substring(0, MAX_LOGGED_EDIT_CONTENT_LENGTH - 3)}...`
-        : newContent;
+        try {
 
-      await logEvent({
-        client: newMessage.client,
-        guildId: newMessage.guild.id,
-        eventType: EVENT_TYPES.MESSAGE_EDIT,
-        data: {
-          title: 'Message edited',
-          lines: metaLines,
-          quoted: true,
-          fields: [
-            { name: 'Before', value: oldContentTruncated, inline: true },
-            { name: 'After', value: newContentTruncated, inline: true },
-          ],
-          userId: newMessage.author?.id,
-          channelId: newMessage.channel.id,
+            if (!newMessage.guild) {
+                return;
+            }
+
+
+            if (
+                newMessage.author?.bot
+            ) {
+                return;
+            }
+
+
+            /*
+             * Ignore Discord's internal
+             * non-content updates.
+             */
+
+            if (
+                oldMessage.content ===
+                newMessage.content
+            ) {
+                return;
+            }
+
+
+            let before =
+                oldMessage.content ||
+                '*(empty message)*';
+
+
+            let after =
+                newMessage.content ||
+                '*(empty message)*';
+
+
+            if (
+                before.length >
+                MAX_CONTENT
+            ) {
+
+                before =
+                    `${before.substring(
+                        0,
+                        MAX_CONTENT - 3
+                    )}...`;
+            }
+
+
+            if (
+                after.length >
+                MAX_CONTENT
+            ) {
+
+                after =
+                    `${after.substring(
+                        0,
+                        MAX_CONTENT - 3
+                    )}...`;
+            }
+
+
+            const lines = [
+
+                formatLogLine(
+                    'Channel',
+                    `${newMessage.channel} • ${newMessage.channel.name}`
+                ),
+
+                formatLogLine(
+                    'Message ID',
+                    `\`${newMessage.id}\``
+                ),
+
+                formatLogLine(
+                    'Author',
+                    newMessage.author
+                        ? `${newMessage.author} • ${newMessage.author.tag}`
+                        : 'Unknown'
+                ),
+            ];
+
+
+            await logEvent({
+
+                client:
+                    newMessage.client,
+
+                guildId:
+                    newMessage.guild.id,
+
+                eventType:
+                    EVENT_TYPES.MESSAGE_EDIT,
+
+                data: {
+
+                    title:
+                        '✏️ Message Edited',
+
+                    lines,
+
+                    quoted:
+                        false,
+
+                    fields: [
+
+                        {
+                            name:
+                                'Before',
+
+                            value:
+                                before,
+
+                            inline:
+                                true,
+                        },
+
+                        {
+                            name:
+                                'After',
+
+                            value:
+                                after,
+
+                            inline:
+                                true,
+                        },
+                    ],
+
+                    userId:
+                        newMessage.author?.id,
+
+                    channelId:
+                        newMessage.channel?.id,
+                },
+            });
+
+        } catch (error) {
+
+            logger.error(
+                'Error in messageUpdate:',
+                error
+            );
         }
-      });
-
-    } catch (error) {
-      logger.error('Error in messageUpdate event:', error);
-    }
-  }
+    },
 };
