@@ -3,13 +3,14 @@ export const LOG_CHANNELS = {
     messages: '1542858198233653348',
     roleChannel: '1542860408082276392',
     members: '1542858527121604658',
-    botIntegrations: '1544080337649279137',
+    botIntegration: '1544080337649279137',
     security: '1541557303453683792',
 };
 
 export const LOG_COLORS = {
-    green: 0x57F287,
-    yellow: 0xFEE75C,
-    red: 0xED4245,
-    orange: 0xF5A623,
+    created: 0x57F287,
+    edited: 0xFEE75C,
+    deleted: 0xED4245,
+    info: 0x5865F2,
+    warning: 0xFEE75C,
 };
