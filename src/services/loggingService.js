@@ -1,15 +1,13 @@
-// loggingService.js
-
 import { ChannelType } from 'discord.js';
-import { getGuildConfig, updateGuildConfig } from './config/guildConfig.js';
+
 import { logger } from '../utils/logger.js';
 
 import {
-    appendContentSection,
     buildLogDescription,
     buildStandardLogEmbed,
     fieldsToLines,
     splitComparisonFields,
+    appendContentSection,
 } from '../utils/logging/logEmbeds.js';
 
 import {
@@ -18,18 +16,7 @@ import {
 } from '../config/logChannels.js';
 
 
-const LOG_DESTINATIONS = [
-    'audit',
-    'applications',
-    'reports',
-];
-
-
-const EVENT_TYPES = {
-
-    // =========================
-    // MODERATION
-    // =========================
+export const EVENT_TYPES = {
 
     MODERATION_BAN: 'moderation.ban',
     MODERATION_KICK: 'moderation.kick',
@@ -44,48 +31,21 @@ const EVENT_TYPES = {
     MODERATION_DM: 'moderation.dm',
     MODERATION_CONFIG: 'moderation.config',
 
-    // =========================
-    // LEVELING
-    // =========================
-
-    LEVELING_LEVELUP: 'leveling.levelup',
-    LEVELING_MILESTONE: 'leveling.milestone',
-
-    // =========================
-    // MESSAGES
-    // =========================
-
     MESSAGE_DELETE: 'message.delete',
     MESSAGE_EDIT: 'message.edit',
     MESSAGE_BULK_DELETE: 'message.bulkdelete',
-
-    // =========================
-    // ROLES
-    // =========================
 
     ROLE_CREATE: 'role.create',
     ROLE_DELETE: 'role.delete',
     ROLE_UPDATE: 'role.update',
 
-    // =========================
-    // CHANNELS
-    // =========================
-
     CHANNEL_CREATE: 'channel.create',
-    CHANNEL_UPDATE: 'channel.update',
     CHANNEL_DELETE: 'channel.delete',
-
-    // =========================
-    // MEMBERS
-    // =========================
+    CHANNEL_UPDATE: 'channel.update',
 
     MEMBER_JOIN: 'member.join',
     MEMBER_LEAVE: 'member.leave',
     MEMBER_NAME_CHANGE: 'member.namechange',
-
-    // =========================
-    // BOTS / INTEGRATIONS
-    // =========================
 
     BOT_ADD: 'bot.add',
     BOT_REMOVE: 'bot.remove',
@@ -98,131 +58,97 @@ const EVENT_TYPES = {
     INTEGRATION_UPDATE: 'integration.update',
     INTEGRATION_DELETE: 'integration.delete',
 
-    // =========================
-    // REACTION ROLES
-    // =========================
-
     REACTION_ROLE_ADD: 'reactionrole.add',
     REACTION_ROLE_REMOVE: 'reactionrole.remove',
     REACTION_ROLE_CREATE: 'reactionrole.create',
     REACTION_ROLE_DELETE: 'reactionrole.delete',
     REACTION_ROLE_UPDATE: 'reactionrole.update',
 
-    // =========================
-    // GIVEAWAYS
-    // =========================
-
     GIVEAWAY_CREATE: 'giveaway.create',
     GIVEAWAY_WINNER: 'giveaway.winner',
     GIVEAWAY_REROLL: 'giveaway.reroll',
     GIVEAWAY_DELETE: 'giveaway.delete',
 
-    // =========================
-    // COUNTERS
-    // =========================
-
     COUNTER_UPDATE: 'counter.update',
     COUNTER_CONFIG: 'counter.config',
 
-    // =========================
-    // APPLICATIONS
-    // =========================
-
     APPLICATION_SUBMIT: 'application.submit',
     APPLICATION_REVIEW: 'application.review',
-
-    // =========================
-    // REPORTS
-    // =========================
 
     REPORT_FILE: 'report.file',
 };
 
 
-const EVENT_COLORS = {
+export const EVENT_COLORS = {
 
-    // Moderation
-    'moderation.ban': LOG_COLORS.red,
-    'moderation.kick': LOG_COLORS.red,
-    'moderation.mute': LOG_COLORS.red,
-    'moderation.warn': LOG_COLORS.yellow,
-    'moderation.purge': LOG_COLORS.red,
-    'moderation.timeout': LOG_COLORS.red,
-    'moderation.untimeout': LOG_COLORS.green,
-    'moderation.unban': LOG_COLORS.green,
-    'moderation.lock': LOG_COLORS.red,
-    'moderation.unlock': LOG_COLORS.green,
-    'moderation.dm': LOG_COLORS.yellow,
-    'moderation.config': LOG_COLORS.yellow,
+    'moderation.ban': LOG_COLORS.deleted,
+    'moderation.kick': LOG_COLORS.deleted,
+    'moderation.mute': LOG_COLORS.warning,
+    'moderation.warn': LOG_COLORS.warning,
+    'moderation.purge': LOG_COLORS.deleted,
+    'moderation.timeout': LOG_COLORS.warning,
+    'moderation.untimeout': LOG_COLORS.created,
+    'moderation.unban': LOG_COLORS.created,
+    'moderation.lock': LOG_COLORS.deleted,
+    'moderation.unlock': LOG_COLORS.created,
+    'moderation.dm': LOG_COLORS.info,
+    'moderation.config': LOG_COLORS.info,
 
-    // Leveling
-    'leveling.levelup': 0x00ff00,
-    'leveling.milestone': 0xFFD700,
+    'message.delete': LOG_COLORS.deleted,
+    'message.edit': LOG_COLORS.edited,
+    'message.bulkdelete': LOG_COLORS.deleted,
 
-    // Messages
-    'message.delete': LOG_COLORS.red,
-    'message.edit': LOG_COLORS.yellow,
-    'message.bulkdelete': LOG_COLORS.red,
+    'role.create': LOG_COLORS.created,
+    'role.delete': LOG_COLORS.deleted,
+    'role.update': LOG_COLORS.edited,
 
-    // Roles
-    'role.create': LOG_COLORS.green,
-    'role.delete': LOG_COLORS.red,
-    'role.update': LOG_COLORS.yellow,
+    'channel.create': LOG_COLORS.created,
+    'channel.delete': LOG_COLORS.deleted,
+    'channel.update': LOG_COLORS.edited,
 
-    // Channels
-    'channel.create': LOG_COLORS.green,
-    'channel.update': LOG_COLORS.yellow,
-    'channel.delete': LOG_COLORS.red,
+    'member.join': LOG_COLORS.created,
+    'member.leave': LOG_COLORS.deleted,
+    'member.namechange': LOG_COLORS.edited,
 
-    // Members
-    'member.join': LOG_COLORS.green,
-    'member.leave': LOG_COLORS.red,
-    'member.namechange': LOG_COLORS.yellow,
+    'bot.add': LOG_COLORS.created,
+    'bot.remove': LOG_COLORS.deleted,
 
-    // Bots
-    'bot.add': LOG_COLORS.green,
-    'bot.remove': LOG_COLORS.red,
+    'webhook.create': LOG_COLORS.created,
+    'webhook.update': LOG_COLORS.edited,
+    'webhook.delete': LOG_COLORS.deleted,
 
-    // Webhooks
-    'webhook.create': LOG_COLORS.green,
-    'webhook.update': LOG_COLORS.yellow,
-    'webhook.delete': LOG_COLORS.red,
+    'integration.create': LOG_COLORS.created,
+    'integration.update': LOG_COLORS.edited,
+    'integration.delete': LOG_COLORS.deleted,
 
-    // Integrations
-    'integration.create': LOG_COLORS.green,
-    'integration.update': LOG_COLORS.yellow,
-    'integration.delete': LOG_COLORS.red,
+    'reactionrole.add': LOG_COLORS.created,
+    'reactionrole.remove': LOG_COLORS.deleted,
+    'reactionrole.create': LOG_COLORS.created,
+    'reactionrole.delete': LOG_COLORS.deleted,
+    'reactionrole.update': LOG_COLORS.edited,
 
-    // Existing
-    'reactionrole.add': LOG_COLORS.green,
-    'reactionrole.remove': LOG_COLORS.red,
-    'reactionrole.create': LOG_COLORS.green,
-    'reactionrole.delete': LOG_COLORS.red,
-    'reactionrole.update': LOG_COLORS.yellow,
+    'giveaway.create': LOG_COLORS.created,
+    'giveaway.winner': LOG_COLORS.created,
+    'giveaway.reroll': LOG_COLORS.edited,
+    'giveaway.delete': LOG_COLORS.deleted,
 
-    'giveaway.create': LOG_COLORS.green,
-    'giveaway.winner': LOG_COLORS.green,
-    'giveaway.reroll': LOG_COLORS.yellow,
-    'giveaway.delete': LOG_COLORS.red,
+    'counter.update': LOG_COLORS.info,
+    'counter.config': LOG_COLORS.edited,
 
-    'counter.update': 0x0099ff,
-    'counter.config': LOG_COLORS.yellow,
+    'application.submit': LOG_COLORS.info,
+    'application.review': LOG_COLORS.created,
 
-    'application.submit': 0x5865F2,
-    'application.review': LOG_COLORS.green,
-
-    'report.file': LOG_COLORS.yellow,
+    'report.file': LOG_COLORS.warning,
 };
 
 
-const EVENT_ICONS = {
+export const EVENT_ICONS = {
 
-    // Moderation
     'moderation.ban': '🔨',
     'moderation.kick': '👢',
     'moderation.mute': '🔇',
     'moderation.warn': '⚠️',
-    'moderation.purge': '🧹',
+    'moderation.purge': '🗑️',
     'moderation.timeout': '⏱️',
     'moderation.untimeout': '🟢',
     'moderation.unban': '🔓',
@@ -231,45 +157,33 @@ const EVENT_ICONS = {
     'moderation.dm': '✉️',
     'moderation.config': '⚙️',
 
-    // Leveling
-    'leveling.levelup': '📈',
-    'leveling.milestone': '🏆',
-
-    // Messages
     'message.delete': '🗑️',
     'message.edit': '✏️',
-    'message.bulkdelete': '🧹',
+    'message.bulkdelete': '🗑️',
 
-    // Roles
     'role.create': '🎭',
     'role.delete': '🎭',
     'role.update': '🎭',
 
-    // Channels
     'channel.create': '📁',
-    'channel.update': '📁',
     'channel.delete': '📁',
+    'channel.update': '📁',
 
-    // Members
     'member.join': '👋',
     'member.leave': '👋',
     'member.namechange': '🏷️',
 
-    // Bots
     'bot.add': '🤖',
     'bot.remove': '🤖',
 
-    // Webhooks
     'webhook.create': '🔗',
     'webhook.update': '🔗',
     'webhook.delete': '🔗',
 
-    // Integrations
     'integration.create': '🔌',
     'integration.update': '🔌',
     'integration.delete': '🔌',
 
-    // Existing
     'reactionrole.add': '✅',
     'reactionrole.remove': '❌',
     'reactionrole.create': '🎭',
@@ -287,174 +201,47 @@ const EVENT_ICONS = {
     'application.submit': '📝',
     'application.review': '📋',
 
-    'report.file': '📢',
+    'report.file': '🚨',
 };
 
 
-const CATEGORY_DESTINATION = {
-    application: 'applications',
-    report: 'reports',
-};
-
-
-export function resolveLogChannel(config, destination) {
-
-    const channels =
-        config?.logging?.channels || {};
+function getChannelId(eventType) {
 
     if (
-        destination &&
-        channels[destination]
-    ) {
-        return channels[destination];
-    }
-
-    if (destination === 'audit') {
-
-        return (
-            channels.audit ??
-            config?.logging?.channelId ??
-            config?.logChannelId ??
-            null
-        );
-    }
-
-    return channels[destination] ?? null;
-}
-
-
-export function getIgnoreList(config) {
-
-    return (
-        config?.logging?.ignore ??
-        config?.logIgnore ??
-        {
-            users: [],
-            channels: [],
-        }
-    );
-}
-
-
-export function isEventEnabled(
-    config,
-    eventType
-) {
-
-    /*
-     * Logging must be enabled.
-     */
-
-    if (!config?.logging?.enabled) {
-        return false;
-    }
-
-    if (
-        !eventType ||
-        typeof eventType !== 'string'
-    ) {
-        return false;
-    }
-
-    const category =
-        eventType.split('.')[0];
-
-    const enabledEvents =
-        config.logging.enabledEvents || {};
-
-    if (
-        enabledEvents[eventType] === false
-    ) {
-        return false;
-    }
-
-    if (
-        enabledEvents[`${category}.*`] === false
-    ) {
-        return false;
-    }
-
-    return true;
-}
-
-
-function getLogChannelForEvent(
-    config,
-    eventType,
-    overrideChannelId = null
-) {
-
-    if (overrideChannelId) {
-        return overrideChannelId;
-    }
-
-    /*
-     * ================================
-     * FRUITYINC FIXED CHANNEL ROUTING
-     * ================================
-     */
-
-    // Moderation + reports
-    if (
-        eventType?.startsWith(
-            'moderation.'
-        ) ||
-        eventType?.startsWith(
-            'report.'
-        )
+        eventType.startsWith('moderation.') ||
+        eventType.startsWith('report.')
     ) {
         return LOG_CHANNELS.moderation;
     }
 
-    // Messages
     if (
-        eventType?.startsWith(
-            'message.'
-        )
+        eventType.startsWith('message.')
     ) {
         return LOG_CHANNELS.messages;
     }
 
-    // Roles + channels
     if (
-        eventType?.startsWith('role.') ||
-        eventType?.startsWith('channel.')
+        eventType.startsWith('role.') ||
+        eventType.startsWith('channel.')
     ) {
         return LOG_CHANNELS.roleChannel;
     }
 
-    // Members
     if (
-        eventType?.startsWith('member.')
+        eventType.startsWith('member.')
     ) {
         return LOG_CHANNELS.members;
     }
 
-    // Bots + integrations
     if (
-        eventType?.startsWith('bot.') ||
-        eventType?.startsWith('webhook.') ||
-        eventType?.startsWith('integration.')
+        eventType.startsWith('bot.') ||
+        eventType.startsWith('webhook.') ||
+        eventType.startsWith('integration.')
     ) {
-        return LOG_CHANNELS.botIntegrations;
+        return LOG_CHANNELS.botIntegration;
     }
 
-    /*
-     * Existing configurable destinations
-     * for everything else.
-     */
-
-    const category =
-        eventType?.split('.')[0];
-
-    const destination =
-        CATEGORY_DESTINATION[category] ||
-        'audit';
-
-    return resolveLogChannel(
-        config,
-        destination
-    );
+    return LOG_CHANNELS.botIntegration;
 }
 
 
@@ -465,7 +252,7 @@ export async function logEvent({
     data = {},
     attachments = [],
     content = null,
-    channelId: overrideChannelId = null,
+    channelId = null,
 }) {
 
     try {
@@ -477,114 +264,80 @@ export async function logEvent({
                 .catch(() => null);
 
         if (!guild) {
-
             logger.warn(
-                `logEvent: Guild not found: ${guildId}`
+                `Logging: guild ${guildId} not found`
             );
-
             return null;
         }
 
-        const config =
-            await getGuildConfig(
-                client,
-                guildId
-            );
-
-        const ignore =
-            getIgnoreList(config);
 
         /*
-         * Ignore users.
+         * Explicit channel override.
+         * Otherwise use the fixed channel
+         * for this event type.
          */
 
-        if (
-            data?.userId &&
-            ignore.users?.includes(
-                data.userId
-            )
-        ) {
+        const targetChannelId =
+            channelId ||
+            getChannelId(eventType);
+
+
+        if (!targetChannelId) {
             return null;
         }
 
-        /*
-         * Ignore channels.
-         */
-
-        if (
-            data?.channelId &&
-            ignore.channels?.includes(
-                data.channelId
-            )
-        ) {
-            return null;
-        }
-
-        /*
-         * Respect existing logging
-         * enabled/disabled setting.
-         */
-
-        if (
-            !isEventEnabled(
-                config,
-                eventType
-            )
-        ) {
-            return null;
-        }
-
-        const logChannelId =
-            getLogChannelForEvent(
-                config,
-                eventType,
-                overrideChannelId
-            );
-
-        if (!logChannelId) {
-            return null;
-        }
 
         const channel =
             guild.channels.cache.get(
-                logChannelId
+                targetChannelId
             ) ||
             await guild.channels
-                .fetch(logChannelId)
+                .fetch(targetChannelId)
                 .catch(() => null);
+
 
         if (
             !channel ||
-            channel.type !== ChannelType.GuildText
+            !channel.isTextBased()
         ) {
 
             logger.warn(
-                `logEvent: Invalid log channel ${logChannelId} for guild ${guildId}`
+                `Logging: channel ${targetChannelId} is unavailable`
             );
 
             return null;
         }
 
+
         const me =
-            guild.members.me;
+            guild.members.me ||
+            await guild.members
+                .fetch(client.user.id)
+                .catch(() => null);
+
 
         const permissions =
-            channel.permissionsFor(me);
+            me
+                ? channel.permissionsFor(me)
+                : null;
+
 
         if (
-            !permissions ||
+            permissions &&
             !permissions.has([
+                'ViewChannel',
                 'SendMessages',
                 'EmbedLinks',
             ])
         ) {
 
             logger.warn(
-                `logEvent: Missing permissions in channel ${logChannelId}`
+                `Logging: missing permissions in ${targetChannelId}`
             );
 
             return null;
         }
+
 
         const embed =
             createLogEmbed(
@@ -593,37 +346,38 @@ export async function logEvent({
                 data
             );
 
+
         const messageOptions = {
             embeds: [embed],
         };
+
 
         if (content) {
             messageOptions.content =
                 content;
         }
 
+
         if (
-            attachments.length > 0
+            attachments?.length
         ) {
             messageOptions.files =
                 attachments;
         }
+
 
         const sent =
             await channel.send(
                 messageOptions
             );
 
-        logger.info(
-            `Event logged: ${eventType} in guild ${guildId}`
-        );
 
         return sent;
 
     } catch (error) {
 
         logger.error(
-            'Error in logEvent:',
+            `Logging error for ${eventType}:`,
             error
         );
 
@@ -641,17 +395,21 @@ function createLogEmbed(
     const color =
         data.color ??
         EVENT_COLORS[eventType] ??
-        0x0099ff;
+        LOG_COLORS.info;
+
 
     const icon =
         EVENT_ICONS[eventType] ||
         '📌';
 
+
     const title =
         data.title ||
         `${icon} ${formatEventType(eventType)}`;
 
+
     const inlineFields = [];
+
 
     let description =
         data.description || '';
@@ -661,6 +419,7 @@ function createLogEmbed(
 
         description =
             buildLogDescription({
+
                 headline:
                     data.headline ||
                     description ||
@@ -687,25 +446,35 @@ function createLogEmbed(
                     data.fields
                 );
 
-            if (
-                before !== null
-            ) {
+
+            if (before !== null) {
 
                 inlineFields.push({
-                    name: 'Before',
-                    value: before,
-                    inline: true,
+
+                    name:
+                        'Before',
+
+                    value:
+                        before,
+
+                    inline:
+                        true,
                 });
             }
 
-            if (
-                after !== null
-            ) {
+
+            if (after !== null) {
 
                 inlineFields.push({
-                    name: 'After',
-                    value: after,
-                    inline: true,
+
+                    name:
+                        'After',
+
+                    value:
+                        after,
+
+                    inline:
+                        true,
                 });
             }
         }
@@ -721,46 +490,55 @@ function createLogEmbed(
                 data.fields
             );
 
+
         if (
             before !== null ||
             after !== null
         ) {
 
-            const metaLines =
-                fieldsToLines(rest);
-
             description =
                 buildLogDescription({
+
                     headline:
                         description ||
                         undefined,
 
                     lines:
-                        metaLines,
+                        fieldsToLines(rest),
 
-                    quoted: true,
+                    quoted:
+                        true,
                 });
 
 
-            if (
-                before !== null
-            ) {
+            if (before !== null) {
 
                 inlineFields.push({
-                    name: 'Before',
-                    value: before,
-                    inline: true,
+
+                    name:
+                        'Before',
+
+                    value:
+                        before,
+
+                    inline:
+                        true,
                 });
             }
 
-            if (
-                after !== null
-            ) {
+
+            if (after !== null) {
 
                 inlineFields.push({
-                    name: 'After',
-                    value: after,
-                    inline: true,
+
+                    name:
+                        'After',
+
+                    value:
+                        after,
+
+                    inline:
+                        true,
                 });
             }
 
@@ -768,6 +546,7 @@ function createLogEmbed(
 
             description =
                 buildLogDescription({
+
                     headline:
                         description ||
                         undefined,
@@ -787,6 +566,7 @@ function createLogEmbed(
 
         description =
             buildLogDescription({
+
                 headline:
                     description ||
                     undefined,
@@ -841,12 +621,14 @@ function createLogEmbed(
             data.author ||
             null,
 
-        timestamp: true,
+        timestamp:
+            true,
 
         footer:
-            data.footer ||
-            {
-                text: guild.name,
+            data.footer || {
+
+                text:
+                    guild.name,
 
                 iconURL:
                     guild.iconURL({
@@ -862,13 +644,6 @@ function formatEventType(
     eventType
 ) {
 
-    if (
-        !eventType ||
-        typeof eventType !== 'string'
-    ) {
-        return 'Unknown Event';
-    }
-
     return eventType
         .split('.')
         .map(
@@ -880,44 +655,74 @@ function formatEventType(
 }
 
 
-export async function getLoggingStatus(
-    client,
-    guildId
+/*
+ * Compatibility exports.
+ *
+ * These don't control logging anymore.
+ * They are kept so another existing part
+ * of the bot won't crash if it imports them.
+ */
+
+export function resolveLogChannel(
+    config,
+    destination
 ) {
 
-    const config =
-        await getGuildConfig(
-            client,
-            guildId
-        );
+    if (
+        destination === 'audit'
+    ) {
+        return LOG_CHANNELS.moderation;
+    }
 
-    const logging =
-        config.logging || {};
+    if (
+        destination === 'applications'
+    ) {
+        return LOG_CHANNELS.moderation;
+    }
+
+    if (
+        destination === 'reports'
+    ) {
+        return LOG_CHANNELS.moderation;
+    }
+
+    return LOG_CHANNELS.moderation;
+}
+
+
+export function getIgnoreList() {
+
+    return {
+        users: [],
+        channels: [],
+    };
+}
+
+
+export function isEventEnabled() {
+
+    return true;
+}
+
+
+export async function getLoggingStatus() {
 
     return {
 
         enabled:
-            logging.enabled ||
-            false,
+            true,
 
         channels:
-            logging.channels ||
-            {
-                audit: null,
-                applications: null,
-                reports: null,
-            },
+            LOG_CHANNELS,
 
-        channelId:
-            logging.channels?.audit ??
-            null,
+        ignore: {
 
-        ignore:
-            getIgnoreList(config),
+            users: [],
 
-        enabledEvents:
-            logging.enabledEvents ||
-            {},
+            channels: [],
+        },
+
+        enabledEvents: {},
 
         allEventTypes:
             EVENT_TYPES,
@@ -925,330 +730,44 @@ export async function getLoggingStatus(
 }
 
 
-export async function toggleEventLogging(
-    client,
-    guildId,
-    eventTypes,
-    enabled
-) {
+export async function toggleEventLogging() {
 
-    try {
-
-        const config =
-            await getGuildConfig(
-                client,
-                guildId
-            );
-
-        const logging = {
-
-            ...config.logging,
-
-            enabledEvents: {
-                ...(
-                    config.logging
-                        ?.enabledEvents ||
-                    {}
-                ),
-            },
-        };
-
-        const types =
-            Array.isArray(eventTypes)
-                ? eventTypes
-                : [eventTypes];
-
-
-        types.forEach(type => {
-
-            if (
-                type.endsWith('.*')
-            ) {
-
-                const category =
-                    type.replace(
-                        '.*',
-                        ''
-                    );
-
-                const matchingTypes =
-                    Object.values(
-                        EVENT_TYPES
-                    ).filter(
-                        eventType =>
-                            eventType.startsWith(
-                                `${category}.`
-                            )
-                    );
-
-                matchingTypes.forEach(
-                    eventType => {
-
-                        logging
-                            .enabledEvents[
-                                eventType
-                            ] = enabled;
-                    }
-                );
-
-                logging.enabledEvents[type] =
-                    enabled;
-
-            } else {
-
-                logging.enabledEvents[type] =
-                    enabled;
-            }
-        });
-
-
-        await updateGuildConfig(
-            client,
-            guildId,
-            { logging }
-        );
-
-        return true;
-
-    } catch (error) {
-
-        logger.error(
-            'Error toggling event logging:',
-            error
-        );
-
-        return false;
-    }
+    return true;
 }
 
 
-export async function setLogChannel(
-    client,
-    guildId,
-    destination,
-    channelId
-) {
+export async function setLogChannel() {
 
-    if (
-        !LOG_DESTINATIONS.includes(
-            destination
-        )
-    ) {
-
-        throw new Error(
-            `Invalid log destination: ${destination}`
-        );
-    }
-
-
-    try {
-
-        const config =
-            await getGuildConfig(
-                client,
-                guildId
-            );
-
-        const logging = {
-
-            ...config.logging,
-
-            channels: {
-
-                ...(
-                    config.logging
-                        ?.channels ||
-                    {}
-                ),
-
-                [destination]:
-                    channelId,
-            },
-        };
-
-
-        if (channelId) {
-            logging.enabled = true;
-        }
-
-
-        await updateGuildConfig(
-            client,
-            guildId,
-            { logging }
-        );
-
-        return true;
-
-    } catch (error) {
-
-        logger.error(
-            'Error setting log channel:',
-            error
-        );
-
-        return false;
-    }
+    return true;
 }
 
 
-/**
- * @deprecated
- */
-export async function setLoggingChannel(
-    client,
-    guildId,
-    channelId
-) {
+export async function setLoggingChannel() {
 
-    return setLogChannel(
-        client,
-        guildId,
-        'audit',
-        channelId
-    );
+    return true;
 }
 
 
-export async function setLoggingEnabled(
-    client,
-    guildId,
-    enabled
-) {
+export async function setLoggingEnabled() {
 
-    try {
-
-        const config =
-            await getGuildConfig(
-                client,
-                guildId
-            );
-
-        const logging = {
-            ...config.logging,
-            enabled,
-        };
-
-        await updateGuildConfig(
-            client,
-            guildId,
-            { logging }
-        );
-
-        return true;
-
-    } catch (error) {
-
-        logger.error(
-            'Error setting logging enabled:',
-            error
-        );
-
-        return false;
-    }
+    return true;
 }
 
 
-export async function updateIgnoreList(
-    client,
-    guildId,
-    {
-        action,
-        type,
-        id,
-    }
-) {
+export async function updateIgnoreList() {
 
-    try {
-
-        const config =
-            await getGuildConfig(
-                client,
-                guildId
-            );
-
-        const ignore = {
-            ...getIgnoreList(config),
-        };
-
-        const listKey =
-            type === 'user'
-                ? 'users'
-                : 'channels';
-
-        const current = [
-            ...(ignore[listKey] || []),
-        ];
-
-
-        if (
-            action === 'add' &&
-            !current.includes(id)
-        ) {
-
-            current.push(id);
-
-        } else if (
-            action === 'remove'
-        ) {
-
-            const index =
-                current.indexOf(id);
-
-            if (index !== -1) {
-                current.splice(index, 1);
-            }
-        }
-
-
-        ignore[listKey] =
-            current;
-
-
-        const logging = {
-            ...config.logging,
-            ignore,
-        };
-
-
-        await updateGuildConfig(
-            client,
-            guildId,
-            { logging }
-        );
-
-        return true;
-
-    } catch (error) {
-
-        logger.error(
-            'Error updating ignore list:',
-            error
-        );
-
-        return false;
-    }
+    return true;
 }
 
 
-export function resolveApplicationLogChannel(
-    config,
-    roleSettings = {},
-    appSettings = {}
-) {
+export function resolveApplicationLogChannel() {
 
-    return (
-        roleSettings.logChannelId ||
-        config?.logging?.channels?.applications ||
-        appSettings.logChannelId ||
-        null
-    );
+    return LOG_CHANNELS.moderation;
 }
 
 
-export {
-    EVENT_TYPES,
-    EVENT_COLORS,
-    EVENT_ICONS,
-    LOG_DESTINATIONS,
-};
+export const LOG_DESTINATIONS = [
+    'audit',
+    'applications',
+    'reports',
+];
