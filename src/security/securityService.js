@@ -8,7 +8,9 @@ import {
     isWhitelisted,
 } from './securityConfig.js';
 
-import { securityLog } from './securityLogger.js';
+import {
+    securityLog,
+} from './securityLogger.js';
 
 const messageHistory = new Map();
 const duplicateHistory = new Map();
@@ -35,45 +37,73 @@ const SUSPICIOUS_LINK_PATTERNS = [
     /free.*vbucks/i,
 ];
 
-function getMessageBucket(guildId, userId) {
-    const key = `${guildId}:${userId}`;
+function getMessageBucket(
+    guildId,
+    userId
+) {
+    const key =
+        `${guildId}:${userId}`;
 
     if (!messageHistory.has(key)) {
-        messageHistory.set(key, []);
+        messageHistory.set(
+            key,
+            []
+        );
     }
 
     return messageHistory.get(key);
 }
 
-function getDuplicateBucket(guildId, userId) {
-    const key = `${guildId}:${userId}`;
+function getDuplicateBucket(
+    guildId,
+    userId
+) {
+    const key =
+        `${guildId}:${userId}`;
 
     if (!duplicateHistory.has(key)) {
-        duplicateHistory.set(key, []);
+        duplicateHistory.set(
+            key,
+            []
+        );
     }
 
     return duplicateHistory.get(key);
 }
 
-function getJoinBucket(guildId) {
+function getJoinBucket(
+    guildId
+) {
     if (!joinHistory.has(guildId)) {
-        joinHistory.set(guildId, []);
+        joinHistory.set(
+            guildId,
+            []
+        );
     }
 
     return joinHistory.get(guildId);
 }
 
-function getNukeBucket(guildId, userId) {
-    const key = `${guildId}:${userId}`;
+function getNukeBucket(
+    guildId,
+    userId
+) {
+    const key =
+        `${guildId}:${userId}`;
 
     if (!nukeHistory.has(key)) {
-        nukeHistory.set(key, []);
+        nukeHistory.set(
+            key,
+            []
+        );
     }
 
     return nukeHistory.get(key);
 }
 
-export function detectSecurityViolation(content) {
+export function detectSecurityViolation(
+    content
+) {
     if (!content) {
         return null;
     }
@@ -86,8 +116,11 @@ export function detectSecurityViolation(content) {
         DISCORD_INVITE_REGEX.lastIndex = 0;
 
         return {
-            type: 'discord-invite',
-            reason: 'Discord invite links are not allowed in this server.',
+            type:
+                'discord-invite',
+
+            reason:
+                'Discord invite links are not allowed in this server.',
         };
     }
 
@@ -97,14 +130,25 @@ export function detectSecurityViolation(content) {
         securityConfig.phishing.enabled &&
         securityConfig.phishing.blockSuspiciousLinks
     ) {
-        const urls = content.match(URL_REGEX) || [];
+        const urls =
+            content.match(URL_REGEX) || [];
 
         for (const url of urls) {
-            for (const pattern of SUSPICIOUS_LINK_PATTERNS) {
-                if (pattern.test(url) || pattern.test(content)) {
+            for (
+                const pattern of
+                SUSPICIOUS_LINK_PATTERNS
+            ) {
+                if (
+                    pattern.test(url) ||
+                    pattern.test(content)
+                ) {
                     return {
-                        type: 'phishing',
-                        reason: 'Suspicious/phishing link detected.',
+                        type:
+                            'phishing',
+
+                        reason:
+                            'Suspicious/phishing link detected.',
+
                         url,
                     };
                 }
@@ -115,8 +159,19 @@ export function detectSecurityViolation(content) {
     return null;
 }
 
-export async function processMessageSecurity(message) {
-    if (!message.guild || message.author.bot) {
+/*
+|--------------------------------------------------------------------------
+| MESSAGE SECURITY
+|--------------------------------------------------------------------------
+*/
+
+export async function processMessageSecurity(
+    message
+) {
+    if (
+        !message.guild ||
+        message.author.bot
+    ) {
         return false;
     }
 
@@ -124,7 +179,13 @@ export async function processMessageSecurity(message) {
         return false;
     }
 
-    if (isWhitelisted(message.author.id, message.guild)) {
+    if (
+        await isWhitelisted(
+            message.author.id,
+            message.guild,
+            message.client
+        )
+    ) {
         return false;
     }
 
@@ -132,44 +193,79 @@ export async function processMessageSecurity(message) {
      * PHISHING / DISCORD INVITES
      */
 
-    const violation = detectSecurityViolation(message.content);
+    const violation =
+        detectSecurityViolation(
+            message.content
+        );
 
     if (violation) {
-        await message.delete().catch(() => {});
-
-        await securityLog(message.client, {
-            title: violation.type === 'discord-invite'
-                ? 'Discord Invite Blocked'
-                : 'Phishing Link Blocked',
-
-            description:
-                `${message.author} attempted to send prohibited content.`,
-
-            color: 0xED4245,
-
-            fields: [
-                {
-                    name: 'User',
-                    value: `${message.author.tag}\n\`${message.author.id}\``,
-                    inline: true,
-                },
-                {
-                    name: 'Channel',
-                    value: `${message.channel}\n\`${message.channel.id}\``,
-                    inline: true,
-                },
-                {
-                    name: 'Reason',
-                    value: violation.reason,
-                },
-            ],
-        });
+        await message
+            .delete()
+            .catch(() => {});
 
         await punishForSecurityViolation(
             message.member,
-            violation.type === 'discord-invite'
+            violation.type ===
+                'discord-invite'
                 ? 'Posting Discord invite link'
                 : 'Posting suspicious/phishing link'
+        );
+
+        await securityLog(
+            message.client,
+            {
+                title:
+                    violation.type ===
+                    'discord-invite'
+                        ? '🔗 Discord Invite Blocked'
+                        : '⚠️ Phishing Link Blocked',
+
+                description:
+                    `${message.author} attempted to send prohibited content.`,
+
+                color:
+                    0xED4245,
+
+                fields: [
+                    {
+                        name:
+                            'User',
+
+                        value:
+                            `${message.author.tag}\n\`${message.author.id}\``,
+
+                        inline:
+                            true,
+                    },
+
+                    {
+                        name:
+                            'Channel',
+
+                        value:
+                            `${message.channel}\n\`${message.channel.id}\``,
+
+                        inline:
+                            true,
+                    },
+
+                    {
+                        name:
+                            'Reason',
+
+                        value:
+                            violation.reason,
+                    },
+                ],
+
+                actionPanel: {
+                    targetId:
+                        message.author.id,
+
+                    targetName:
+                        message.author.tag,
+                },
+            }
         );
 
         return true;
@@ -179,58 +275,98 @@ export async function processMessageSecurity(message) {
      * SPAM
      */
 
-    if (securityConfig.spam.enabled) {
-        const now = Date.now();
+    if (
+        securityConfig.spam.enabled
+    ) {
+        const now =
+            Date.now();
 
-        const bucket = getMessageBucket(
-            message.guild.id,
-            message.author.id
-        );
+        const bucket =
+            getMessageBucket(
+                message.guild.id,
+                message.author.id
+            );
 
         bucket.push(now);
 
-        const validMessages = bucket.filter(
-            timestamp =>
-                now - timestamp <= securityConfig.spam.messageWindow
-        );
+        const validMessages =
+            bucket.filter(
+                timestamp =>
+                    now - timestamp <=
+                    securityConfig.spam.messageWindow
+            );
 
         messageHistory.set(
             `${message.guild.id}:${message.author.id}`,
             validMessages
         );
 
-        if (validMessages.length >= securityConfig.spam.messageLimit) {
-            await message.delete().catch(() => {});
+        if (
+            validMessages.length >=
+            securityConfig.spam.messageLimit
+        ) {
+            await message
+                .delete()
+                .catch(() => {});
 
             await punishForSecurityViolation(
                 message.member,
                 'Message spam'
             );
 
-            await securityLog(message.client, {
-                title: 'Spam Detected',
-                description:
-                    `${message.author} exceeded the spam threshold.`,
+            await securityLog(
+                message.client,
+                {
+                    title:
+                        '💬 Spam Detected',
 
-                color: 0xFEE75C,
+                    description:
+                        `${message.author} exceeded the spam threshold.`,
 
-                fields: [
-                    {
-                        name: 'Messages',
-                        value: `${validMessages.length}`,
-                        inline: true,
+                    color:
+                        0xFEE75C,
+
+                    fields: [
+                        {
+                            name:
+                                'Messages',
+
+                            value:
+                                `${validMessages.length}`,
+
+                            inline:
+                                true,
+                        },
+
+                        {
+                            name:
+                                'Window',
+
+                            value:
+                                `${securityConfig.spam.messageWindow}ms`,
+
+                            inline:
+                                true,
+                        },
+
+                        {
+                            name:
+                                'User',
+
+                            value:
+                                `${message.author.tag}\n\`${message.author.id}\``,
+                        },
+                    ],
+
+                    actionPanel: {
+                        targetId:
+                            message.author.id,
+
+                        targetName:
+                            message.author.tag,
                     },
-                    {
-                        name: 'Window',
-                        value: `${securityConfig.spam.messageWindow}ms`,
-                        inline: true,
-                    },
-                    {
-                        name: 'User',
-                        value: `${message.author.tag}\n\`${message.author.id}\``,
-                    },
-                ],
-            });
+                }
+            );
 
             return true;
         }
@@ -239,58 +375,99 @@ export async function processMessageSecurity(message) {
          * DUPLICATE MESSAGE SPAM
          */
 
-        if (message.content.trim().length > 3) {
-            const duplicates = getDuplicateBucket(
-                message.guild.id,
-                message.author.id
-            );
+        if (
+            message.content.trim().length >
+            3
+        ) {
+            const duplicates =
+                getDuplicateBucket(
+                    message.guild.id,
+                    message.author.id
+                );
 
             duplicates.push({
-                content: message.content.trim().toLowerCase(),
-                timestamp: now,
+                content:
+                    message.content
+                        .trim()
+                        .toLowerCase(),
+
+                timestamp:
+                    now,
             });
 
-            const recent = duplicates.filter(
-                item =>
-                    now - item.timestamp <=
-                    securityConfig.spam.duplicateWindow
-            );
+            const recent =
+                duplicates.filter(
+                    item =>
+                        now - item.timestamp <=
+                        securityConfig.spam.duplicateWindow
+                );
 
             duplicateHistory.set(
                 `${message.guild.id}:${message.author.id}`,
                 recent
             );
 
-            const duplicateCount = recent.filter(
-                item => item.content === message.content.trim().toLowerCase()
-            ).length;
+            const duplicateCount =
+                recent.filter(
+                    item =>
+                        item.content ===
+                        message.content
+                            .trim()
+                            .toLowerCase()
+                ).length;
 
-            if (duplicateCount >= securityConfig.spam.duplicateLimit) {
-                await message.delete().catch(() => {});
+            if (
+                duplicateCount >=
+                securityConfig.spam.duplicateLimit
+            ) {
+                await message
+                    .delete()
+                    .catch(() => {});
 
                 await punishForSecurityViolation(
                     message.member,
                     'Repeated duplicate messages'
                 );
 
-                await securityLog(message.client, {
-                    title: 'Duplicate Spam Detected',
-                    description:
-                        `${message.author} repeatedly sent the same message.`,
+                await securityLog(
+                    message.client,
+                    {
+                        title:
+                            '🔁 Duplicate Spam Detected',
 
-                    color: 0xFEE75C,
+                        description:
+                            `${message.author} repeatedly sent the same message.`,
 
-                    fields: [
-                        {
-                            name: 'User',
-                            value: `${message.author.tag}\n\`${message.author.id}\``,
+                        color:
+                            0xFEE75C,
+
+                        fields: [
+                            {
+                                name:
+                                    'User',
+
+                                value:
+                                    `${message.author.tag}\n\`${message.author.id}\``,
+                            },
+
+                            {
+                                name:
+                                    'Duplicate Count',
+
+                                value:
+                                    `${duplicateCount}`,
+                            },
+                        ],
+
+                        actionPanel: {
+                            targetId:
+                                message.author.id,
+
+                            targetName:
+                                message.author.tag,
                         },
-                        {
-                            name: 'Duplicate Count',
-                            value: `${duplicateCount}`,
-                        },
-                    ],
-                });
+                    }
+                );
 
                 return true;
             }
@@ -301,36 +478,62 @@ export async function processMessageSecurity(message) {
      * MENTION SPAM
      */
 
-    if (
+    const mentionCount =
         message.mentions.users.size +
-        message.mentions.roles.size >=
+        message.mentions.roles.size;
+
+    if (
+        mentionCount >=
         securityConfig.spam.mentionLimit
     ) {
-        await message.delete().catch(() => {});
+        await message
+            .delete()
+            .catch(() => {});
 
         await punishForSecurityViolation(
             message.member,
             'Mention spam'
         );
 
-        await securityLog(message.client, {
-            title: 'Mention Spam Detected',
-            description:
-                `${message.author} sent excessive mentions.`,
+        await securityLog(
+            message.client,
+            {
+                title:
+                    '📢 Mention Spam Detected',
 
-            color: 0xFEE75C,
+                description:
+                    `${message.author} sent excessive mentions.`,
 
-            fields: [
-                {
-                    name: 'Mentions',
-                    value: `${message.mentions.users.size + message.mentions.roles.size}`,
+                color:
+                    0xFEE75C,
+
+                fields: [
+                    {
+                        name:
+                            'Mentions',
+
+                        value:
+                            `${mentionCount}`,
+                    },
+
+                    {
+                        name:
+                            'User',
+
+                        value:
+                            `${message.author.tag}\n\`${message.author.id}\``,
+                    },
+                ],
+
+                actionPanel: {
+                    targetId:
+                        message.author.id,
+
+                    targetName:
+                        message.author.tag,
                 },
-                {
-                    name: 'User',
-                    value: `${message.author.tag}\n\`${message.author.id}\``,
-                },
-            ],
-        });
+            }
+        );
 
         return true;
     }
@@ -338,7 +541,16 @@ export async function processMessageSecurity(message) {
     return false;
 }
 
-async function punishForSecurityViolation(member, reason) {
+/*
+|--------------------------------------------------------------------------
+| AUTOMATIC MINOR PUNISHMENT
+|--------------------------------------------------------------------------
+*/
+
+async function punishForSecurityViolation(
+    member,
+    reason
+) {
     if (!member) {
         return;
     }
@@ -346,7 +558,9 @@ async function punishForSecurityViolation(member, reason) {
     try {
         if (
             member.moderatable &&
-            member.permissions.has(PermissionFlagsBits.Administrator) === false
+            member.permissions.has(
+                PermissionFlagsBits.Administrator
+            ) === false
         ) {
             await member.timeout(
                 5 * 60 * 1000,
@@ -358,135 +572,250 @@ async function punishForSecurityViolation(member, reason) {
     }
 }
 
-export async function processRaidJoin(member) {
-    if (!member.guild || member.user.bot) {
+/*
+|--------------------------------------------------------------------------
+| RAID / ALT DETECTION
+|--------------------------------------------------------------------------
+*/
+
+export async function processRaidJoin(
+    member
+) {
+    if (
+        !member.guild ||
+        member.user.bot
+    ) {
         return;
     }
 
     if (
         !securityConfig.enabled ||
         !securityConfig.antiRaid.enabled ||
-        isWhitelisted(member.id, member.guild)
+        await isWhitelisted(
+            member.id,
+            member.guild,
+            member.client
+        )
     ) {
         return;
     }
 
-    const now = Date.now();
+    const now =
+        Date.now();
 
-    const joins = getJoinBucket(member.guild.id);
+    const joins =
+        getJoinBucket(
+            member.guild.id
+        );
 
     joins.push({
-        userId: member.id,
-        timestamp: now,
+        userId:
+            member.id,
+
+        timestamp:
+            now,
     });
 
-    const recent = joins.filter(
-        join =>
-            now - join.timestamp <=
-            securityConfig.antiRaid.joinWindow
+    const recent =
+        joins.filter(
+            join =>
+                now - join.timestamp <=
+                securityConfig.antiRaid.joinWindow
+        );
+
+    joinHistory.set(
+        member.guild.id,
+        recent
     );
 
-    joinHistory.set(member.guild.id, recent);
-
     /*
-     * Suspiciously new account
+     * POSSIBLE ALT ACCOUNT
+     *
+     * Account age alone does NOT prove someone
+     * is an alt, so this remains a minor alert.
      */
 
     const accountAge =
-        Date.now() - member.user.createdTimestamp;
+        Date.now() -
+        member.user.createdTimestamp;
 
     const accountAgeDays =
-        accountAge / (1000 * 60 * 60 * 24);
+        accountAge /
+        (1000 * 60 * 60 * 24);
 
     if (
         accountAgeDays <
         securityConfig.antiRaid.accountAgeDays
     ) {
-        try {
-            if (member.moderatable) {
-                await member.timeout(
-                    securityConfig.antiRaid.timeoutMinutes * 60 * 1000,
-                    'New account security protection'
-                );
-            }
-        } catch {
-            // Ignore timeout failures.
+        let severity =
+            'Possible alt account';
+
+        if (
+            accountAgeDays < 3
+        ) {
+            severity =
+                'Very new account — possible alt';
         }
 
-        await securityLog(member.client, {
-            title: 'New Account Flagged',
-            description:
-                `${member.user} joined with a very new Discord account.`,
+        await securityLog(
+            member.client,
+            {
+                title:
+                    '⚠️ Possible Alt Account',
 
-            color: 0xFEE75C,
+                description:
+                    `${member.user} joined with an unusually new Discord account.`,
 
-            fields: [
-                {
-                    name: 'Account Age',
-                    value: `${accountAgeDays.toFixed(2)} days`,
-                    inline: true,
+                color:
+                    0xFEE75C,
+
+                fields: [
+                    {
+                        name:
+                            'User',
+
+                        value:
+                            `${member.user.tag}\n\`${member.id}\``,
+
+                        inline:
+                            true,
+                    },
+
+                    {
+                        name:
+                            'Account Age',
+
+                        value:
+                            `${accountAgeDays.toFixed(2)} days`,
+
+                        inline:
+                            true,
+                    },
+
+                    {
+                        name:
+                            'Detection',
+
+                        value:
+                            severity,
+                    },
+
+                    {
+                        name:
+                            'Reason',
+
+                        value:
+                            'The account is younger than the configured security threshold. This is not proof that the account is an alt.',
+                    },
+                ],
+
+                actionPanel: {
+                    targetId:
+                        member.id,
+
+                    targetName:
+                        member.user.tag,
                 },
-                {
-                    name: 'User',
-                    value: `${member.user.tag}\n\`${member.id}\``,
-                    inline: true,
-                },
-            ],
-        });
+            }
+        );
     }
 
     /*
      * RAID DETECTION
+     *
+     * This stays automatic.
      */
 
     if (
         recent.length >=
         securityConfig.antiRaid.joinLimit
     ) {
-        securityConfig.raidMode.add(member.guild.id);
+        securityConfig.raidMode.add(
+            member.guild.id
+        );
 
-        for (const join of recent) {
+        for (
+            const join of recent
+        ) {
             const joinedMember =
-                member.guild.members.cache.get(join.userId);
+                member.guild.members.cache.get(
+                    join.userId
+                );
 
             if (
                 joinedMember &&
                 joinedMember.moderatable
             ) {
-                await joinedMember.timeout(
-                    securityConfig.antiRaid.timeoutMinutes * 60 * 1000,
-                    'Anti-raid protection'
-                ).catch(() => {});
+                await joinedMember
+                    .timeout(
+                        securityConfig
+                            .antiRaid
+                            .timeoutMinutes *
+                            60 *
+                            1000,
+
+                        'Anti-raid protection'
+                    )
+                    .catch(() => {});
             }
         }
 
-        await securityLog(member.client, {
-            title: '🚨 RAID DETECTED',
-            description:
-                `A possible join raid has been detected. New members have been temporarily restricted.`,
+        await securityLog(
+            member.client,
+            {
+                title:
+                    '🚨 RAID DETECTED',
 
-            color: 0xED4245,
+                description:
+                    'A possible join raid has been detected. New members have been temporarily restricted.',
 
-            fields: [
-                {
-                    name: 'Joins',
-                    value: `${recent.length}`,
-                    inline: true,
-                },
-                {
-                    name: 'Window',
-                    value: `${securityConfig.antiRaid.joinWindow / 1000}s`,
-                    inline: true,
-                },
-                {
-                    name: 'Mode',
-                    value: 'RAID MODE ACTIVE',
-                    inline: true,
-                },
-            ],
-        });
+                color:
+                    0xED4245,
+
+                fields: [
+                    {
+                        name:
+                            'Joins',
+
+                        value:
+                            `${recent.length}`,
+
+                        inline:
+                            true,
+                    },
+
+                    {
+                        name:
+                            'Window',
+
+                        value:
+                            `${securityConfig.antiRaid.joinWindow / 1000}s`,
+
+                        inline:
+                            true,
+                    },
+
+                    {
+                        name:
+                            'Mode',
+
+                        value:
+                            'RAID MODE ACTIVE',
+
+                        inline:
+                            true,
+                    },
+                ],
+            }
+        );
     }
 }
+
+/*
+|--------------------------------------------------------------------------
+| ANTI-NUKE
+|--------------------------------------------------------------------------
+*/
 
 export async function processAuditAction({
     client,
@@ -495,7 +824,10 @@ export async function processAuditAction({
     action,
     target,
 }) {
-    if (!guild || !executor) {
+    if (
+        !guild ||
+        !executor
+    ) {
         return;
     }
 
@@ -503,78 +835,130 @@ export async function processAuditAction({
         !securityConfig.enabled ||
         !securityConfig.antiNuke.enabled ||
         executor.bot ||
-        isWhitelisted(executor.id, guild)
+        await isWhitelisted(
+            executor.id,
+            guild,
+            client
+        )
     ) {
         return;
     }
 
-    const destructiveActions = new Set([
-        AuditLogEvent.ChannelDelete,
-        AuditLogEvent.RoleDelete,
-        AuditLogEvent.MemberBanAdd,
-        AuditLogEvent.MemberKick,
-        AuditLogEvent.WebhookDelete,
-        AuditLogEvent.WebhookCreate,
-        AuditLogEvent.ChannelCreate,
-        AuditLogEvent.RoleCreate,
-        AuditLogEvent.MemberUpdate,
-        AuditLogEvent.GuildUpdate,
-        AuditLogEvent.BotAdd,
-    ]);
+    const destructiveActions =
+        new Set([
+            AuditLogEvent.ChannelDelete,
+            AuditLogEvent.RoleDelete,
+            AuditLogEvent.MemberBanAdd,
+            AuditLogEvent.MemberKick,
+            AuditLogEvent.WebhookDelete,
+            AuditLogEvent.WebhookCreate,
+            AuditLogEvent.ChannelCreate,
+            AuditLogEvent.RoleCreate,
+            AuditLogEvent.MemberUpdate,
+            AuditLogEvent.GuildUpdate,
+            AuditLogEvent.BotAdd,
+        ]);
 
-    if (!destructiveActions.has(action)) {
+    if (
+        !destructiveActions.has(
+            action
+        )
+    ) {
         return;
     }
 
-    const now = Date.now();
+    const now =
+        Date.now();
 
-    const bucket = getNukeBucket(
-        guild.id,
-        executor.id
-    );
+    const bucket =
+        getNukeBucket(
+            guild.id,
+            executor.id
+        );
 
     bucket.push({
         action,
-        timestamp: now,
-        targetId: target?.id || null,
+        timestamp:
+            now,
+
+        targetId:
+            target?.id ||
+            null,
     });
 
-    const recent = bucket.filter(
-        item =>
-            now - item.timestamp <=
-            securityConfig.antiNuke.actionWindow
-    );
+    const recent =
+        bucket.filter(
+            item =>
+                now - item.timestamp <=
+                securityConfig.antiNuke.actionWindow
+        );
 
     nukeHistory.set(
         `${guild.id}:${executor.id}`,
         recent
     );
 
-    await securityLog(client, {
-        title: '⚠️ Dangerous Server Action',
-        description:
-            `${executor} performed a potentially dangerous server action.`,
+    await securityLog(
+        client,
+        {
+            title:
+                '⚠️ Dangerous Server Action',
 
-        color: 0xFEE75C,
+            description:
+                `${executor} performed a potentially dangerous server action.`,
 
-        fields: [
-            {
-                name: 'Executor',
-                value: `${executor.tag}\n\`${executor.id}\``,
-            },
-            {
-                name: 'Action',
-                value: `${action}`,
-                inline: true,
-            },
-            {
-                name: 'Actions Recently',
-                value: `${recent.length}`,
-                inline: true,
-            },
-        ],
-    });
+            color:
+                0xFEE75C,
 
+            fields: [
+                {
+                    name:
+                        'Executor',
+
+                    value:
+                        `${executor.tag}\n\`${executor.id}\``,
+                },
+
+                {
+                    name:
+                        'Action',
+
+                    value:
+                        `${action}`,
+
+                    inline:
+                        true,
+                },
+
+                {
+                    name:
+                        'Actions Recently',
+
+                    value:
+                        `${recent.length}`,
+
+                    inline:
+                        true,
+                },
+
+                {
+                    name:
+                        'Target',
+
+                    value:
+                        target?.name ||
+                        target?.tag ||
+                        target?.id ||
+                        'Unknown',
+                },
+            ],
+        }
+    );
+
+    /*
+     * Major incident.
+     * Automatic protection remains enabled.
+     */
     if (
         recent.length >=
         securityConfig.antiNuke.actionLimit
@@ -599,44 +983,390 @@ async function neutralizeNuker(
     actions
 ) {
     const member =
-        guild.members.cache.get(executor.id) ||
-        await guild.members.fetch(executor.id).catch(() => null);
+        guild.members.cache.get(
+            executor.id
+        ) ||
+        await guild.members
+            .fetch(executor.id)
+            .catch(() => null);
 
     if (!member) {
         return;
     }
 
-    await securityLog(client, {
-        title: '☢️ ANTI-NUKE ACTIVATED',
-        description:
-            `${executor} triggered the anti-nuke threshold.`,
+    await securityLog(
+        client,
+        {
+            title:
+                '☢️ ANTI-NUKE ACTIVATED',
 
-        color: 0xED4245,
+            description:
+                `${executor} triggered the anti-nuke threshold.`,
 
-        fields: [
-            {
-                name: 'Actions Detected',
-                value: `${actions.length}`,
-                inline: true,
-            },
-            {
-                name: 'Window',
-                value: `${securityConfig.antiNuke.actionWindow / 1000}s`,
-                inline: true,
-            },
-        ],
-    });
+            color:
+                0xED4245,
+
+            fields: [
+                {
+                    name:
+                        'Actions Detected',
+
+                    value:
+                        `${actions.length}`,
+
+                    inline:
+                        true,
+                },
+
+                {
+                    name:
+                        'Window',
+
+                    value:
+                        `${securityConfig.antiNuke.actionWindow / 1000}s`,
+
+                    inline:
+                        true,
+                },
+            ],
+        }
+    );
 
     /*
-     * Remove dangerous roles first.
+     * Remove dangerous roles.
      */
 
-    if (securityConfig.antiNuke.removeDangerousRoles) {
-        const dangerousRoles = member.roles.cache.filter(
+    if (
+        securityConfig
+            .antiNuke
+            .removeDangerousRoles
+    ) {
+        const dangerousRoles =
+            member.roles.cache.filter(
+                role =>
+                    role.id !==
+                        guild.id &&
+                    !role.managed &&
+                    role.editable &&
+                    role.permissions.any([
+                        PermissionFlagsBits.Administrator,
+                        PermissionFlagsBits.ManageGuild,
+                        PermissionFlagsBits.ManageChannels,
+                        PermissionFlagsBits.ManageRoles,
+                        PermissionFlagsBits.ManageWebhooks,
+                        PermissionFlagsBits.BanMembers,
+                        PermissionFlagsBits.KickMembers,
+                    ])
+            );
+
+        for (
+            const role of
+            dangerousRoles.values()
+        ) {
+            await member.roles
+                .remove(
+                    role,
+                    'Anti-nuke protection'
+                )
+                .catch(() => {});
+        }
+    }
+
+    /*
+     * Automatic timeout.
+     */
+
+    if (
+        member.moderatable
+    ) {
+        await member
+            .timeout(
+                60 * 60 * 1000,
+                'Anti-nuke protection'
+            )
+            .catch(() => {});
+    }
+
+    /*
+     * Automatic ban.
+     */
+
+    if (
+        securityConfig
+            .antiNuke
+            .banExecutor &&
+        member.bannable
+    ) {
+        await guild.members
+            .ban(
+                executor.id,
+                {
+                    reason:
+                        'Anti-nuke protection triggered',
+
+                    deleteMessageSeconds:
+                        0,
+                }
+            )
+            .catch(() => {});
+    }
+}
+
+/*
+|--------------------------------------------------------------------------
+| LOCKDOWN
+|--------------------------------------------------------------------------
+*/
+
+export async function enableLockdown(
+    guild
+) {
+    if (
+        securityConfig.lockdown.enabled
+    ) {
+        return false;
+    }
+
+    securityConfig.lockdown.enabled =
+        true;
+
+    const saved =
+        new Map();
+
+    for (
+        const channel of
+        guild.channels.cache.values()
+    ) {
+        if (
+            !channel.isTextBased?.()
+        ) {
+            continue;
+        }
+
+        if (
+            !channel.permissionOverwrites
+        ) {
+            continue;
+        }
+
+        const overwrite =
+            channel.permissionOverwrites.cache.get(
+                guild.roles.everyone.id
+            );
+
+        saved.set(
+            channel.id,
+            overwrite?.deny?.bitfield?.toString() ||
+                '0'
+        );
+
+        await channel.permissionOverwrites
+            .edit(
+                guild.roles.everyone,
+                {
+                    SendMessages:
+                        false,
+                },
+                {
+                    reason:
+                        'Security lockdown',
+                }
+            )
+            .catch(() => {});
+    }
+
+    securityConfig
+        .lockdownChannels
+        .set(
+            guild.id,
+            saved
+        );
+
+    return true;
+}
+
+export async function disableLockdown(
+    guild
+) {
+    if (
+        !securityConfig.lockdown.enabled
+    ) {
+        return false;
+    }
+
+    const saved =
+        securityConfig
+            .lockdownChannels
+            .get(guild.id);
+
+    if (saved) {
+        for (
+            const [
+                channelId,
+                previousDeny,
+            ] of saved
+        ) {
+            const channel =
+                guild.channels.cache.get(
+                    channelId
+                );
+
+            if (
+                !channel?.permissionOverwrites
+            ) {
+                continue;
+            }
+
+            const numericDeny =
+                BigInt(
+                    previousDeny ||
+                        '0'
+                );
+
+            const currentlyDenied =
+                (
+                    numericDeny &
+                    BigInt(
+                        PermissionFlagsBits.SendMessages
+                    )
+                ) !==
+                0n;
+
+            await channel.permissionOverwrites
+                .edit(
+                    guild.roles.everyone,
+                    {
+                        SendMessages:
+                            currentlyDenied
+                                ? false
+                                : null,
+                    },
+                    {
+                        reason:
+                            'Security lockdown ended',
+                    }
+                )
+                .catch(() => {});
+        }
+    }
+
+    securityConfig
+        .lockdownChannels
+        .delete(
+            guild.id
+        );
+
+    securityConfig.lockdown.enabled =
+        false;
+
+    return true;
+}
+
+/*
+|--------------------------------------------------------------------------
+| STATUS
+|--------------------------------------------------------------------------
+*/
+
+export function getSecurityStatus(
+    guildId
+) {
+    const whitelistCount =
+        [...securityConfig.whitelistedUsers]
+            .filter(key =>
+                key.startsWith(
+                    `${guildId}:`
+                )
+            ).length;
+
+    return {
+        enabled:
+            securityConfig.enabled,
+
+        phishing:
+            securityConfig.phishing.enabled,
+
+        discordInvitesBlocked:
+            securityConfig.phishing
+                .blockDiscordInvites,
+
+        spam:
+            securityConfig.spam.enabled,
+
+        antiRaid:
+            securityConfig.antiRaid.enabled,
+
+        antiNuke:
+            securityConfig.antiNuke.enabled,
+
+        raidMode:
+            securityConfig.raidMode.has(
+                guildId
+            ),
+
+        lockdown:
+            securityConfig.lockdown.enabled,
+
+        whitelistedUsers:
+            whitelistCount,
+    };
+}
+
+/*
+|--------------------------------------------------------------------------
+| SECURITY SCAN
+|--------------------------------------------------------------------------
+*/
+
+export function scanGuild(
+    guild
+) {
+    const problems = [];
+    const warnings = [];
+    const good = [];
+
+    const everyone =
+        guild.roles.everyone;
+
+    if (
+        everyone.permissions.has(
+            PermissionFlagsBits.Administrator
+        )
+    ) {
+        problems.push(
+            '@everyone has Administrator permission.'
+        );
+    } else {
+        good.push(
+            '@everyone does not have Administrator.'
+        );
+    }
+
+    const adminRoles =
+        guild.roles.cache.filter(
             role =>
-                role.id !== guild.id &&
                 !role.managed &&
-                role.editable &&
+                role.permissions.has(
+                    PermissionFlagsBits.Administrator
+                )
+        );
+
+    if (
+        adminRoles.size > 3
+    ) {
+        warnings.push(
+            `${adminRoles.size} roles have Administrator permission.`
+        );
+    } else {
+        good.push(
+            `${adminRoles.size} Administrator role(s) found.`
+        );
+    }
+
+    const dangerousRoles =
+        guild.roles.cache.filter(
+            role =>
+                !role.managed &&
                 role.permissions.any([
                     PermissionFlagsBits.Administrator,
                     PermissionFlagsBits.ManageGuild,
@@ -648,206 +1378,9 @@ async function neutralizeNuker(
                 ])
         );
 
-        for (const role of dangerousRoles.values()) {
-            await member.roles.remove(
-                role,
-                'Anti-nuke protection'
-            ).catch(() => {});
-        }
-    }
-
-    /*
-     * Timeout if possible.
-     */
-
-    if (member.moderatable) {
-        await member.timeout(
-            60 * 60 * 1000,
-            'Anti-nuke protection'
-        ).catch(() => {});
-    }
-
-    /*
-     * Ban the executor if configured and possible.
-     */
-
     if (
-        securityConfig.antiNuke.banExecutor &&
-        member.bannable
+        dangerousRoles.size > 10
     ) {
-        await guild.members.ban(
-            executor.id,
-            {
-                reason: 'Anti-nuke protection triggered',
-                deleteMessageSeconds: 0,
-            }
-        ).catch(() => {});
-    }
-}
-
-export async function enableLockdown(guild) {
-    if (securityConfig.lockdown.enabled) {
-        return false;
-    }
-
-    securityConfig.lockdown.enabled = true;
-
-    const saved = new Map();
-
-    for (const channel of guild.channels.cache.values()) {
-        if (!channel.isTextBased?.()) {
-            continue;
-        }
-
-        if (!channel.permissionOverwrites) {
-            continue;
-        }
-
-        const overwrite = channel.permissionOverwrites.cache.get(
-            guild.roles.everyone.id
-        );
-
-        saved.set(
-            channel.id,
-            overwrite?.deny?.bitfield?.toString() || '0'
-        );
-
-        await channel.permissionOverwrites.edit(
-            guild.roles.everyone,
-            {
-                SendMessages: false,
-            },
-            {
-                reason: 'Security lockdown',
-            }
-        ).catch(() => {});
-    }
-
-    securityConfig.lockdownChannels.set(
-        guild.id,
-        saved
-    );
-
-    return true;
-}
-
-export async function disableLockdown(guild) {
-    if (!securityConfig.lockdown.enabled) {
-        return false;
-    }
-
-    const saved =
-        securityConfig.lockdownChannels.get(guild.id);
-
-    if (saved) {
-        for (const [channelId, previousDeny] of saved) {
-            const channel =
-                guild.channels.cache.get(channelId);
-
-            if (!channel?.permissionOverwrites) {
-                continue;
-            }
-
-            /*
-             * Restore the @everyone SEND_MESSAGES overwrite
-             * as closely as possible.
-             */
-            const numericDeny =
-                BigInt(previousDeny || '0');
-
-            const currentlyDenied =
-                (numericDeny &
-                    BigInt(PermissionFlagsBits.SendMessages)) !==
-                0n;
-
-            await channel.permissionOverwrites.edit(
-                guild.roles.everyone,
-                {
-                    SendMessages: currentlyDenied
-                        ? false
-                        : null,
-                },
-                {
-                    reason: 'Security lockdown ended',
-                }
-            ).catch(() => {});
-        }
-    }
-
-    securityConfig.lockdownChannels.delete(guild.id);
-    securityConfig.lockdown.enabled = false;
-
-    return true;
-}
-
-export function getSecurityStatus(guildId) {
-    return {
-        enabled: securityConfig.enabled,
-        phishing: securityConfig.phishing.enabled,
-        discordInvitesBlocked:
-            securityConfig.phishing.blockDiscordInvites,
-        spam: securityConfig.spam.enabled,
-        antiRaid: securityConfig.antiRaid.enabled,
-        antiNuke: securityConfig.antiNuke.enabled,
-        raidMode: securityConfig.raidMode.has(guildId),
-        lockdown: securityConfig.lockdown.enabled,
-        whitelistedUsers:
-            securityConfig.whitelistedUsers.size,
-    };
-}
-
-export function scanGuild(guild) {
-    const problems = [];
-    const warnings = [];
-    const good = [];
-
-    const everyone = guild.roles.everyone;
-
-    if (
-        everyone.permissions.has(
-            PermissionFlagsBits.Administrator
-        )
-    ) {
-        problems.push(
-            '@everyone has Administrator permission.'
-        );
-    } else {
-        good.push('@everyone does not have Administrator.');
-    }
-
-    const adminRoles = guild.roles.cache.filter(
-        role =>
-            !role.managed &&
-            role.permissions.has(
-                PermissionFlagsBits.Administrator
-            )
-    );
-
-    if (adminRoles.size > 3) {
-        warnings.push(
-            `${adminRoles.size} roles have Administrator permission.`
-        );
-    } else {
-        good.push(
-            `${adminRoles.size} Administrator role(s) found.`
-        );
-    }
-
-    const dangerousRoles =
-        guild.roles.cache.filter(role =>
-            !role.managed &&
-            role.permissions.any([
-                PermissionFlagsBits.Administrator,
-                PermissionFlagsBits.ManageGuild,
-                PermissionFlagsBits.ManageChannels,
-                PermissionFlagsBits.ManageRoles,
-                PermissionFlagsBits.ManageWebhooks,
-                PermissionFlagsBits.BanMembers,
-                PermissionFlagsBits.KickMembers,
-            ])
-        );
-
-    if (dangerousRoles.size > 10) {
         warnings.push(
             `${dangerousRoles.size} roles have high-risk permissions.`
         );
@@ -862,7 +1395,9 @@ export function scanGuild(guild) {
                 )
         );
 
-    if (adminBots.size > 2) {
+    if (
+        adminBots.size > 2
+    ) {
         warnings.push(
             `${adminBots.size} bots have Administrator permission.`
         );
@@ -873,51 +1408,76 @@ export function scanGuild(guild) {
     }
 
     const publicDangerousChannels =
-        guild.channels.cache.filter(channel => {
-            if (!channel.permissionOverwrites) {
-                return false;
-            }
+        guild.channels.cache.filter(
+            channel => {
+                if (
+                    !channel.permissionOverwrites
+                ) {
+                    return false;
+                }
 
-            const overwrite =
-                channel.permissionOverwrites.cache.get(
-                    guild.roles.everyone.id
+                const overwrite =
+                    channel.permissionOverwrites.cache.get(
+                        guild.roles.everyone.id
+                    );
+
+                return overwrite?.allow?.has(
+                    PermissionFlagsBits.MentionEveryone
                 );
+            }
+        );
 
-            return overwrite?.allow?.has(
-                PermissionFlagsBits.MentionEveryone
-            );
-        });
-
-    if (publicDangerousChannels.size > 0) {
+    if (
+        publicDangerousChannels.size >
+        0
+    ) {
         warnings.push(
             `${publicDangerousChannels.size} channel(s) allow @everyone to mention everyone.`
         );
     }
 
-    if (securityConfig.phishing.blockDiscordInvites) {
-        good.push('Discord invite links are blocked.');
+    if (
+        securityConfig.phishing
+            .blockDiscordInvites
+    ) {
+        good.push(
+            'Discord invite links are blocked.'
+        );
     }
 
-    if (securityConfig.antiNuke.enabled) {
-        good.push('Anti-nuke protection is enabled.');
+    if (
+        securityConfig.antiNuke.enabled
+    ) {
+        good.push(
+            'Anti-nuke protection is enabled.'
+        );
     }
 
-    if (securityConfig.antiRaid.enabled) {
-        good.push('Anti-raid protection is enabled.');
+    if (
+        securityConfig.antiRaid.enabled
+    ) {
+        good.push(
+            'Anti-raid protection is enabled.'
+        );
     }
 
     return {
         problems,
         warnings,
         good,
-        score: Math.max(
-            0,
-            Math.min(
-                100,
-                100 -
-                    problems.length * 20 -
-                    warnings.length * 5
-            )
-        ),
+
+        score:
+            Math.max(
+                0,
+                Math.min(
+                    100,
+
+                    100 -
+                        problems.length *
+                            20 -
+                        warnings.length *
+                            5
+                )
+            ),
     };
 }
