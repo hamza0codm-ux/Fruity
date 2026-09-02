@@ -18,10 +18,8 @@ import {
 
 
 const ACTIONS = new Map([
-
     [
         AuditLogEvent.BotAdd,
-
         {
             type:
                 EVENT_TYPES.BOT_ADD,
@@ -33,7 +31,6 @@ const ACTIONS = new Map([
 
     [
         AuditLogEvent.WebhookCreate,
-
         {
             type:
                 EVENT_TYPES.WEBHOOK_CREATE,
@@ -45,7 +42,6 @@ const ACTIONS = new Map([
 
     [
         AuditLogEvent.WebhookUpdate,
-
         {
             type:
                 EVENT_TYPES.WEBHOOK_UPDATE,
@@ -57,7 +53,6 @@ const ACTIONS = new Map([
 
     [
         AuditLogEvent.WebhookDelete,
-
         {
             type:
                 EVENT_TYPES.WEBHOOK_DELETE,
@@ -69,7 +64,6 @@ const ACTIONS = new Map([
 
     [
         AuditLogEvent.IntegrationCreate,
-
         {
             type:
                 EVENT_TYPES.INTEGRATION_CREATE,
@@ -81,7 +75,6 @@ const ACTIONS = new Map([
 
     [
         AuditLogEvent.IntegrationUpdate,
-
         {
             type:
                 EVENT_TYPES.INTEGRATION_UPDATE,
@@ -93,7 +86,6 @@ const ACTIONS = new Map([
 
     [
         AuditLogEvent.IntegrationDelete,
-
         {
             type:
                 EVENT_TYPES.INTEGRATION_DELETE,
@@ -105,23 +97,72 @@ const ACTIONS = new Map([
 ]);
 
 
-export default {
+/*
+ * Discord audit-log targets are not always normal
+ * User objects.
+ *
+ * Some targets return "[object Object]" when
+ * .toString() is used.
+ *
+ * We therefore check useful properties FIRST.
+ */
+function getTargetName(target) {
+    if (!target) {
+        return 'Unknown';
+    }
 
+    return (
+        target.name ||
+        target.displayName ||
+        target.username ||
+        target.tag ||
+        target.user?.tag ||
+        target.user?.username ||
+        target.application?.name ||
+        target.integration?.name ||
+        (
+            target.id
+                ? `Unknown • \`${target.id}\``
+                : 'Unknown'
+        )
+    );
+}
+
+
+function getExecutorName(executor) {
+    if (!executor) {
+        return 'Unknown';
+    }
+
+    return (
+        executor.tag ||
+        executor.username ||
+        executor.globalName ||
+        (
+            executor.id
+                ? `<@${executor.id}>`
+                : 'Unknown'
+        )
+    );
+}
+
+
+export default {
     name:
         Events.GuildAuditLogEntryCreate,
 
-    once: false,
+    once:
+        false,
 
     async execute(
         entry,
         guild
     ) {
-
         try {
-
             if (!guild || !entry) {
                 return;
             }
+
 
             const action =
                 ACTIONS.get(
@@ -131,6 +172,7 @@ export default {
             if (!action) {
                 return;
             }
+
 
             const lines = [];
 
@@ -142,22 +184,19 @@ export default {
                 entry.executor;
 
 
+            // TARGET
             if (target) {
-
                 lines.push(
                     formatLogLine(
                         'Target',
-                        target.toString?.() ||
-                        target.name ||
-                        target.tag ||
-                        `\`${target.id}\``
+                        getTargetName(target)
                     )
                 );
             }
 
 
+            // TARGET ID
             if (target?.id) {
-
                 lines.push(
                     formatLogLine(
                         'Target ID',
@@ -167,19 +206,19 @@ export default {
             }
 
 
+            // EXECUTOR
             if (executor) {
-
                 lines.push(
                     formatLogLine(
                         'Executor',
-                        `${executor} • \`${executor.id}\``
+                        `${getExecutorName(executor)} • \`${executor.id}\``
                     )
                 );
             }
 
 
+            // REASON
             if (entry.reason) {
-
                 lines.push(
                     formatLogLine(
                         'Reason',
@@ -190,7 +229,6 @@ export default {
 
 
             await logEvent({
-
                 client:
                     guild.client,
 
@@ -201,18 +239,17 @@ export default {
                     action.type,
 
                 data: {
-
                     title:
                         action.title,
 
                     lines,
 
-                    quoted: false,
+                    quoted:
+                        false,
                 },
             });
 
         } catch (error) {
-
             logger.error(
                 'Error in botIntegrationAudit:',
                 error
