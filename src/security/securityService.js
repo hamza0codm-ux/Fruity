@@ -12,10 +12,24 @@ import {
     securityLog,
 } from './securityLogger.js';
 
+
+/*
+|--------------------------------------------------------------------------
+| SECURITY MEMORY
+|--------------------------------------------------------------------------
+*/
+
 const messageHistory = new Map();
 const duplicateHistory = new Map();
 const joinHistory = new Map();
 const nukeHistory = new Map();
+
+
+/*
+|--------------------------------------------------------------------------
+| DETECTION REGEX
+|--------------------------------------------------------------------------
+*/
 
 const DISCORD_INVITE_REGEX =
     /(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord\.com\/invite|discordapp\.com\/invite|discord\.me|discord\.io)\/[A-Za-z0-9-]+/gi;
@@ -37,73 +51,62 @@ const SUSPICIOUS_LINK_PATTERNS = [
     /free.*vbucks/i,
 ];
 
-function getMessageBucket(
-    guildId,
-    userId
-) {
-    const key =
-        `${guildId}:${userId}`;
+
+/*
+|--------------------------------------------------------------------------
+| BUCKETS
+|--------------------------------------------------------------------------
+*/
+
+function getMessageBucket(guildId, userId) {
+    const key = `${guildId}:${userId}`;
 
     if (!messageHistory.has(key)) {
-        messageHistory.set(
-            key,
-            []
-        );
+        messageHistory.set(key, []);
     }
 
     return messageHistory.get(key);
 }
 
-function getDuplicateBucket(
-    guildId,
-    userId
-) {
-    const key =
-        `${guildId}:${userId}`;
+
+function getDuplicateBucket(guildId, userId) {
+    const key = `${guildId}:${userId}`;
 
     if (!duplicateHistory.has(key)) {
-        duplicateHistory.set(
-            key,
-            []
-        );
+        duplicateHistory.set(key, []);
     }
 
     return duplicateHistory.get(key);
 }
 
-function getJoinBucket(
-    guildId
-) {
+
+function getJoinBucket(guildId) {
     if (!joinHistory.has(guildId)) {
-        joinHistory.set(
-            guildId,
-            []
-        );
+        joinHistory.set(guildId, []);
     }
 
     return joinHistory.get(guildId);
 }
 
-function getNukeBucket(
-    guildId,
-    userId
-) {
-    const key =
-        `${guildId}:${userId}`;
+
+function getNukeBucket(guildId, userId) {
+    const key = `${guildId}:${userId}`;
 
     if (!nukeHistory.has(key)) {
-        nukeHistory.set(
-            key,
-            []
-        );
+        nukeHistory.set(key, []);
     }
 
     return nukeHistory.get(key);
 }
 
-export function detectSecurityViolation(
-    content
-) {
+
+/*
+|--------------------------------------------------------------------------
+| LINK / PHISHING DETECTION
+|--------------------------------------------------------------------------
+*/
+
+export function detectSecurityViolation(content) {
     if (!content) {
         return null;
     }
@@ -116,9 +119,7 @@ export function detectSecurityViolation(
         DISCORD_INVITE_REGEX.lastIndex = 0;
 
         return {
-            type:
-                'discord-invite',
-
+            type: 'discord-invite',
             reason:
                 'Discord invite links are not allowed in this server.',
         };
@@ -130,25 +131,18 @@ export function detectSecurityViolation(
         securityConfig.phishing.enabled &&
         securityConfig.phishing.blockSuspiciousLinks
     ) {
-        const urls =
-            content.match(URL_REGEX) || [];
+        const urls = content.match(URL_REGEX) || [];
 
         for (const url of urls) {
-            for (
-                const pattern of
-                SUSPICIOUS_LINK_PATTERNS
-            ) {
+            for (const pattern of SUSPICIOUS_LINK_PATTERNS) {
                 if (
                     pattern.test(url) ||
                     pattern.test(content)
                 ) {
                     return {
-                        type:
-                            'phishing',
-
+                        type: 'phishing',
                         reason:
                             'Suspicious/phishing link detected.',
-
                         url,
                     };
                 }
@@ -159,387 +153,6 @@ export function detectSecurityViolation(
     return null;
 }
 
-/*
-|--------------------------------------------------------------------------
-| MESSAGE SECURITY
-|--------------------------------------------------------------------------
-*/
-
-export async function processMessageSecurity(
-    message
-) {
-    if (
-        !message.guild ||
-        message.author.bot
-    ) {
-        return false;
-    }
-
-    if (!securityConfig.enabled) {
-        return false;
-    }
-
-    if (
-        await isWhitelisted(
-            message.author.id,
-            message.guild,
-            message.client
-        )
-    ) {
-        return false;
-    }
-
-    /*
-     * PHISHING / DISCORD INVITES
-     */
-
-    const violation =
-        detectSecurityViolation(
-            message.content
-        );
-
-    if (violation) {
-        await message
-            .delete()
-            .catch(() => {});
-
-        await punishForSecurityViolation(
-            message.member,
-            violation.type ===
-                'discord-invite'
-                ? 'Posting Discord invite link'
-                : 'Posting suspicious/phishing link'
-        );
-
-        await securityLog(
-            message.client,
-            {
-                title:
-                    violation.type ===
-                    'discord-invite'
-                        ? '🔗 Discord Invite Blocked'
-                        : '⚠️ Phishing Link Blocked',
-
-                description:
-                    `${message.author} attempted to send prohibited content.`,
-
-                color:
-                    0xED4245,
-
-                fields: [
-                    {
-                        name:
-                            'User',
-
-                        value:
-                            `${message.author.tag}\n\`${message.author.id}\``,
-
-                        inline:
-                            true,
-                    },
-
-                    {
-                        name:
-                            'Channel',
-
-                        value:
-                            `${message.channel}\n\`${message.channel.id}\``,
-
-                        inline:
-                            true,
-                    },
-
-                    {
-                        name:
-                            'Reason',
-
-                        value:
-                            violation.reason,
-                    },
-                ],
-
-                actionPanel: {
-                    targetId:
-                        message.author.id,
-
-                    targetName:
-                        message.author.tag,
-                },
-            }
-        );
-
-        return true;
-    }
-
-    /*
-     * SPAM
-     */
-
-    if (
-        securityConfig.spam.enabled
-    ) {
-        const now =
-            Date.now();
-
-        const bucket =
-            getMessageBucket(
-                message.guild.id,
-                message.author.id
-            );
-
-        bucket.push(now);
-
-        const validMessages =
-            bucket.filter(
-                timestamp =>
-                    now - timestamp <=
-                    securityConfig.spam.messageWindow
-            );
-
-        messageHistory.set(
-            `${message.guild.id}:${message.author.id}`,
-            validMessages
-        );
-
-        if (
-            validMessages.length >=
-            securityConfig.spam.messageLimit
-        ) {
-            await message
-                .delete()
-                .catch(() => {});
-
-            await punishForSecurityViolation(
-                message.member,
-                'Message spam'
-            );
-
-            await securityLog(
-                message.client,
-                {
-                    title:
-                        '💬 Spam Detected',
-
-                    description:
-                        `${message.author} exceeded the spam threshold.`,
-
-                    color:
-                        0xFEE75C,
-
-                    fields: [
-                        {
-                            name:
-                                'Messages',
-
-                            value:
-                                `${validMessages.length}`,
-
-                            inline:
-                                true,
-                        },
-
-                        {
-                            name:
-                                'Window',
-
-                            value:
-                                `${securityConfig.spam.messageWindow}ms`,
-
-                            inline:
-                                true,
-                        },
-
-                        {
-                            name:
-                                'User',
-
-                            value:
-                                `${message.author.tag}\n\`${message.author.id}\``,
-                        },
-                    ],
-
-                    actionPanel: {
-                        targetId:
-                            message.author.id,
-
-                        targetName:
-                            message.author.tag,
-                    },
-                }
-            );
-
-            return true;
-        }
-
-        /*
-         * DUPLICATE MESSAGE SPAM
-         */
-
-        if (
-            message.content.trim().length >
-            3
-        ) {
-            const duplicates =
-                getDuplicateBucket(
-                    message.guild.id,
-                    message.author.id
-                );
-
-            duplicates.push({
-                content:
-                    message.content
-                        .trim()
-                        .toLowerCase(),
-
-                timestamp:
-                    now,
-            });
-
-            const recent =
-                duplicates.filter(
-                    item =>
-                        now - item.timestamp <=
-                        securityConfig.spam.duplicateWindow
-                );
-
-            duplicateHistory.set(
-                `${message.guild.id}:${message.author.id}`,
-                recent
-            );
-
-            const duplicateCount =
-                recent.filter(
-                    item =>
-                        item.content ===
-                        message.content
-                            .trim()
-                            .toLowerCase()
-                ).length;
-
-            if (
-                duplicateCount >=
-                securityConfig.spam.duplicateLimit
-            ) {
-                await message
-                    .delete()
-                    .catch(() => {});
-
-                await punishForSecurityViolation(
-                    message.member,
-                    'Repeated duplicate messages'
-                );
-
-                await securityLog(
-                    message.client,
-                    {
-                        title:
-                            '🔁 Duplicate Spam Detected',
-
-                        description:
-                            `${message.author} repeatedly sent the same message.`,
-
-                        color:
-                            0xFEE75C,
-
-                        fields: [
-                            {
-                                name:
-                                    'User',
-
-                                value:
-                                    `${message.author.tag}\n\`${message.author.id}\``,
-                            },
-
-                            {
-                                name:
-                                    'Duplicate Count',
-
-                                value:
-                                    `${duplicateCount}`,
-                            },
-                        ],
-
-                        actionPanel: {
-                            targetId:
-                                message.author.id,
-
-                            targetName:
-                                message.author.tag,
-                        },
-                    }
-                );
-
-                return true;
-            }
-        }
-    }
-
-    /*
-     * MENTION SPAM
-     */
-
-    const mentionCount =
-        message.mentions.users.size +
-        message.mentions.roles.size;
-
-    if (
-        mentionCount >=
-        securityConfig.spam.mentionLimit
-    ) {
-        await message
-            .delete()
-            .catch(() => {});
-
-        await punishForSecurityViolation(
-            message.member,
-            'Mention spam'
-        );
-
-        await securityLog(
-            message.client,
-            {
-                title:
-                    '📢 Mention Spam Detected',
-
-                description:
-                    `${message.author} sent excessive mentions.`,
-
-                color:
-                    0xFEE75C,
-
-                fields: [
-                    {
-                        name:
-                            'Mentions',
-
-                        value:
-                            `${mentionCount}`,
-                    },
-
-                    {
-                        name:
-                            'User',
-
-                        value:
-                            `${message.author.tag}\n\`${message.author.id}\``,
-                    },
-                ],
-
-                actionPanel: {
-                    targetId:
-                        message.author.id,
-
-                    targetName:
-                        message.author.tag,
-                },
-            }
-        );
-
-        return true;
-    }
-
-    return false;
-}
 
 /*
 |--------------------------------------------------------------------------
@@ -547,10 +160,7 @@ export async function processMessageSecurity(
 |--------------------------------------------------------------------------
 */
 
-async function punishForSecurityViolation(
-    member,
-    reason
-) {
+async function punishForSecurityViolation(member, reason) {
     if (!member) {
         return;
     }
@@ -558,39 +168,419 @@ async function punishForSecurityViolation(
     try {
         if (
             member.moderatable &&
-            member.permissions.has(
+            !member.permissions.has(
                 PermissionFlagsBits.Administrator
-            ) === false
+            )
         ) {
             await member.timeout(
                 5 * 60 * 1000,
                 reason
             );
         }
-    } catch {
-        // Ignore punishment failures.
+    } catch (error) {
+        console.error(
+            '[SECURITY] Could not automatically timeout member:',
+            error.message
+        );
     }
 }
 
+
 /*
 |--------------------------------------------------------------------------
-| RAID / ALT DETECTION
+| MESSAGE SECURITY
 |--------------------------------------------------------------------------
 */
 
-export async function processRaidJoin(
-    member
-) {
+export async function processMessageSecurity(message) {
+    try {
+        if (
+            !message.guild ||
+            message.author?.bot
+        ) {
+            return false;
+        }
+
+        if (!securityConfig.enabled) {
+            return false;
+        }
+
+        if (
+            await isWhitelisted(
+                message.author.id,
+                message.guild,
+                message.client
+            )
+        ) {
+            return false;
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | PHISHING / DISCORD INVITES
+        |--------------------------------------------------------------------------
+        */
+
+        const violation =
+            detectSecurityViolation(
+                message.content
+            );
+
+        if (violation) {
+            await message
+                .delete()
+                .catch(() => {});
+
+            await punishForSecurityViolation(
+                message.member,
+                violation.type === 'discord-invite'
+                    ? 'Posting Discord invite link'
+                    : 'Posting suspicious/phishing link'
+            );
+
+            await securityLog(
+                message.client,
+                {
+                    title:
+                        violation.type === 'discord-invite'
+                            ? '🔗 Discord Invite Blocked'
+                            : '⚠️ Phishing Link Blocked',
+
+                    description:
+                        `${message.author} attempted to send prohibited content.`,
+
+                    color: 0xED4245,
+
+                    fields: [
+                        {
+                            name: 'User',
+                            value:
+                                `${message.author.tag}\n\`${message.author.id}\``,
+                            inline: true,
+                        },
+                        {
+                            name: 'Channel',
+                            value:
+                                `${message.channel}\n\`${message.channel.id}\``,
+                            inline: true,
+                        },
+                        {
+                            name: 'Reason',
+                            value: violation.reason,
+                        },
+                    ],
+
+                    actionPanel: {
+                        targetId: message.author.id,
+                        targetName: message.author.tag,
+                    },
+                }
+            );
+
+            return true;
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | MESSAGE SPAM
+        |--------------------------------------------------------------------------
+        */
+
+        if (securityConfig.spam.enabled) {
+            console.log(
+                '[SECURITY DEBUG] Spam checker running'
+            );
+
+            const now = Date.now();
+
+            const bucket =
+                getMessageBucket(
+                    message.guild.id,
+                    message.author.id
+                );
+
+            console.log(
+                `[SECURITY DEBUG] Current bucket before: ${bucket.length}`
+            );
+
+            bucket.push(now);
+
+            const validMessages =
+                bucket.filter(
+                    timestamp =>
+                        now - timestamp <=
+                        securityConfig.spam.messageWindow
+                );
+
+            messageHistory.set(
+                `${message.guild.id}:${message.author.id}`,
+                validMessages
+            );
+
+            console.log(
+                `[SECURITY DEBUG] Valid messages: ${validMessages.length}/${securityConfig.spam.messageLimit}`
+            );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | SPAM THRESHOLD
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                validMessages.length >=
+                securityConfig.spam.messageLimit
+            ) {
+                console.log(
+                    '[SECURITY DEBUG] 🚨 SPAM LIMIT REACHED'
+                );
+
+                await message
+                    .delete()
+                    .catch(() => {});
+
+                await punishForSecurityViolation(
+                    message.member,
+                    'Message spam'
+                );
+
+                await securityLog(
+                    message.client,
+                    {
+                        title:
+                            '💬 Spam Detected',
+
+                        description:
+                            `${message.author} exceeded the spam threshold.`,
+
+                        color: 0xFEE75C,
+
+                        fields: [
+                            {
+                                name: 'Messages',
+                                value:
+                                    `${validMessages.length}`,
+                                inline: true,
+                            },
+                            {
+                                name: 'Window',
+                                value:
+                                    `${securityConfig.spam.messageWindow / 1000}s`,
+                                inline: true,
+                            },
+                            {
+                                name: 'User',
+                                value:
+                                    `${message.author.tag}\n\`${message.author.id}\``,
+                            },
+                        ],
+
+                        actionPanel: {
+                            targetId: message.author.id,
+                            targetName: message.author.tag,
+                        },
+                    }
+                );
+
+                return true;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | DUPLICATE MESSAGE SPAM
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                message.content.trim().length > 3
+            ) {
+                const duplicates =
+                    getDuplicateBucket(
+                        message.guild.id,
+                        message.author.id
+                    );
+
+                duplicates.push({
+                    content:
+                        message.content
+                            .trim()
+                            .toLowerCase(),
+
+                    timestamp: now,
+                });
+
+                const recent =
+                    duplicates.filter(
+                        item =>
+                            now - item.timestamp <=
+                            securityConfig.spam.duplicateWindow
+                    );
+
+                duplicateHistory.set(
+                    `${message.guild.id}:${message.author.id}`,
+                    recent
+                );
+
+                const normalized =
+                    message.content
+                        .trim()
+                        .toLowerCase();
+
+                const duplicateCount =
+                    recent.filter(
+                        item =>
+                            item.content === normalized
+                    ).length;
+
+                if (
+                    duplicateCount >=
+                    securityConfig.spam.duplicateLimit
+                ) {
+                    await message
+                        .delete()
+                        .catch(() => {});
+
+                    await punishForSecurityViolation(
+                        message.member,
+                        'Repeated duplicate messages'
+                    );
+
+                    await securityLog(
+                        message.client,
+                        {
+                            title:
+                                '🔁 Duplicate Spam Detected',
+
+                            description:
+                                `${message.author} repeatedly sent the same message.`,
+
+                            color: 0xFEE75C,
+
+                            fields: [
+                                {
+                                    name: 'User',
+                                    value:
+                                        `${message.author.tag}\n\`${message.author.id}\``,
+                                },
+                                {
+                                    name: 'Duplicate Count',
+                                    value:
+                                        `${duplicateCount}`,
+                                },
+                            ],
+
+                            actionPanel: {
+                                targetId:
+                                    message.author.id,
+                                targetName:
+                                    message.author.tag,
+                            },
+                        }
+                    );
+
+                    return true;
+                }
+            }
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | MENTION SPAM
+        |--------------------------------------------------------------------------
+        */
+
+        const mentionCount =
+            message.mentions.users.size +
+            message.mentions.roles.size;
+
+        if (
+            mentionCount >=
+            securityConfig.spam.mentionLimit
+        ) {
+            await message
+                .delete()
+                .catch(() => {});
+
+            await punishForSecurityViolation(
+                message.member,
+                'Mention spam'
+            );
+
+            await securityLog(
+                message.client,
+                {
+                    title:
+                        '📢 Mention Spam Detected',
+
+                    description:
+                        `${message.author} sent excessive mentions.`,
+
+                    color: 0xFEE75C,
+
+                    fields: [
+                        {
+                            name: 'Mentions',
+                            value:
+                                `${mentionCount}`,
+                        },
+                        {
+                            name: 'User',
+                            value:
+                                `${message.author.tag}\n\`${message.author.id}\``,
+                        },
+                    ],
+
+                    actionPanel: {
+                        targetId: message.author.id,
+                        targetName: message.author.tag,
+                    },
+                }
+            );
+
+            return true;
+        }
+
+        return false;
+
+    } catch (error) {
+        console.error(
+            '[SECURITY] Message security processing error:',
+            error
+        );
+
+        return false;
+    }
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| ANTI-RAID / ALT DETECTION
+|--------------------------------------------------------------------------
+*/
+
+export async function processRaidJoin(member) {
     if (
-        !member.guild ||
-        member.user.bot
+        !member?.guild ||
+        member.user?.bot
     ) {
         return;
     }
 
+    if (!securityConfig.enabled) {
+        return;
+    }
+
+    if (!securityConfig.antiRaid.enabled) {
+        return;
+    }
+
     if (
-        !securityConfig.enabled ||
-        !securityConfig.antiRaid.enabled ||
         await isWhitelisted(
             member.id,
             member.guild,
@@ -600,8 +590,7 @@ export async function processRaidJoin(
         return;
     }
 
-    const now =
-        Date.now();
+    const now = Date.now();
 
     const joins =
         getJoinBucket(
@@ -609,11 +598,8 @@ export async function processRaidJoin(
         );
 
     joins.push({
-        userId:
-            member.id,
-
-        timestamp:
-            now,
+        userId: member.id,
+        timestamp: now,
     });
 
     const recent =
@@ -628,12 +614,12 @@ export async function processRaidJoin(
         recent
     );
 
+
     /*
-     * POSSIBLE ALT ACCOUNT
-     *
-     * Account age alone does NOT prove someone
-     * is an alt, so this remains a minor alert.
-     */
+    |--------------------------------------------------------------------------
+    | POSSIBLE ALT ACCOUNT
+    |--------------------------------------------------------------------------
+    */
 
     const accountAge =
         Date.now() -
@@ -647,15 +633,10 @@ export async function processRaidJoin(
         accountAgeDays <
         securityConfig.antiRaid.accountAgeDays
     ) {
-        let severity =
-            'Possible alt account';
-
-        if (
+        const severity =
             accountAgeDays < 3
-        ) {
-            severity =
-                'Very new account — possible alt';
-        }
+                ? 'Very new account — possible alt'
+                : 'Possible alt account';
 
         await securityLog(
             member.client,
@@ -666,65 +647,46 @@ export async function processRaidJoin(
                 description:
                     `${member.user} joined with an unusually new Discord account.`,
 
-                color:
-                    0xFEE75C,
+                color: 0xFEE75C,
 
                 fields: [
                     {
-                        name:
-                            'User',
-
+                        name: 'User',
                         value:
                             `${member.user.tag}\n\`${member.id}\``,
-
-                        inline:
-                            true,
+                        inline: true,
                     },
-
                     {
-                        name:
-                            'Account Age',
-
+                        name: 'Account Age',
                         value:
                             `${accountAgeDays.toFixed(2)} days`,
-
-                        inline:
-                            true,
+                        inline: true,
                     },
-
                     {
-                        name:
-                            'Detection',
-
-                        value:
-                            severity,
+                        name: 'Detection',
+                        value: severity,
                     },
-
                     {
-                        name:
-                            'Reason',
-
+                        name: 'Reason',
                         value:
                             'The account is younger than the configured security threshold. This is not proof that the account is an alt.',
                     },
                 ],
 
                 actionPanel: {
-                    targetId:
-                        member.id,
-
-                    targetName:
-                        member.user.tag,
+                    targetId: member.id,
+                    targetName: member.user.tag,
                 },
             }
         );
     }
 
+
     /*
-     * RAID DETECTION
-     *
-     * This stays automatic.
-     */
+    |--------------------------------------------------------------------------
+    | RAID MODE
+    |--------------------------------------------------------------------------
+    */
 
     if (
         recent.length >=
@@ -734,9 +696,7 @@ export async function processRaidJoin(
             member.guild.id
         );
 
-        for (
-            const join of recent
-        ) {
+        for (const join of recent) {
             const joinedMember =
                 member.guild.members.cache.get(
                     join.userId
@@ -748,12 +708,9 @@ export async function processRaidJoin(
             ) {
                 await joinedMember
                     .timeout(
-                        securityConfig
-                            .antiRaid
-                            .timeoutMinutes *
+                        securityConfig.antiRaid.timeoutMinutes *
                             60 *
                             1000,
-
                         'Anti-raid protection'
                     )
                     .catch(() => {});
@@ -769,47 +726,33 @@ export async function processRaidJoin(
                 description:
                     'A possible join raid has been detected. New members have been temporarily restricted.',
 
-                color:
-                    0xED4245,
+                color: 0xED4245,
 
                 fields: [
                     {
-                        name:
-                            'Joins',
-
+                        name: 'Joins',
                         value:
                             `${recent.length}`,
-
-                        inline:
-                            true,
+                        inline: true,
                     },
-
                     {
-                        name:
-                            'Window',
-
+                        name: 'Window',
                         value:
                             `${securityConfig.antiRaid.joinWindow / 1000}s`,
-
-                        inline:
-                            true,
+                        inline: true,
                     },
-
                     {
-                        name:
-                            'Mode',
-
+                        name: 'Mode',
                         value:
                             'RAID MODE ACTIVE',
-
-                        inline:
-                            true,
+                        inline: true,
                     },
                 ],
             }
         );
     }
 }
+
 
 /*
 |--------------------------------------------------------------------------
@@ -831,10 +774,19 @@ export async function processAuditAction({
         return;
     }
 
+    if (!securityConfig.enabled) {
+        return;
+    }
+
+    if (!securityConfig.antiNuke.enabled) {
+        return;
+    }
+
+    if (executor.bot) {
+        return;
+    }
+
     if (
-        !securityConfig.enabled ||
-        !securityConfig.antiNuke.enabled ||
-        executor.bot ||
         await isWhitelisted(
             executor.id,
             guild,
@@ -843,6 +795,7 @@ export async function processAuditAction({
     ) {
         return;
     }
+
 
     const destructiveActions =
         new Set([
@@ -860,15 +813,13 @@ export async function processAuditAction({
         ]);
 
     if (
-        !destructiveActions.has(
-            action
-        )
+        !destructiveActions.has(action)
     ) {
         return;
     }
 
-    const now =
-        Date.now();
+
+    const now = Date.now();
 
     const bucket =
         getNukeBucket(
@@ -878,12 +829,9 @@ export async function processAuditAction({
 
     bucket.push({
         action,
-        timestamp:
-            now,
-
+        timestamp: now,
         targetId:
-            target?.id ||
-            null,
+            target?.id || null,
     });
 
     const recent =
@@ -898,6 +846,13 @@ export async function processAuditAction({
         recent
     );
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOG DANGEROUS ACTION
+    |--------------------------------------------------------------------------
+    */
+
     await securityLog(
         client,
         {
@@ -907,44 +862,28 @@ export async function processAuditAction({
             description:
                 `${executor} performed a potentially dangerous server action.`,
 
-            color:
-                0xFEE75C,
+            color: 0xFEE75C,
 
             fields: [
                 {
-                    name:
-                        'Executor',
-
+                    name: 'Executor',
                     value:
                         `${executor.tag}\n\`${executor.id}\``,
                 },
-
                 {
-                    name:
-                        'Action',
-
+                    name: 'Action',
                     value:
                         `${action}`,
-
-                    inline:
-                        true,
+                    inline: true,
                 },
-
                 {
-                    name:
-                        'Actions Recently',
-
+                    name: 'Actions Recently',
                     value:
                         `${recent.length}`,
-
-                    inline:
-                        true,
+                    inline: true,
                 },
-
                 {
-                    name:
-                        'Target',
-
+                    name: 'Target',
                     value:
                         target?.name ||
                         target?.tag ||
@@ -955,10 +894,13 @@ export async function processAuditAction({
         }
     );
 
+
     /*
-     * Major incident.
-     * Automatic protection remains enabled.
-     */
+    |--------------------------------------------------------------------------
+    | MAJOR ANTI-NUKE
+    |--------------------------------------------------------------------------
+    */
+
     if (
         recent.length >=
         securityConfig.antiNuke.actionLimit
@@ -975,6 +917,13 @@ export async function processAuditAction({
         );
     }
 }
+
+
+/*
+|--------------------------------------------------------------------------
+| NEUTRALIZE NUKER
+|--------------------------------------------------------------------------
+*/
 
 async function neutralizeNuker(
     client,
@@ -994,6 +943,7 @@ async function neutralizeNuker(
         return;
     }
 
+
     await securityLog(
         client,
         {
@@ -1003,49 +953,39 @@ async function neutralizeNuker(
             description:
                 `${executor} triggered the anti-nuke threshold.`,
 
-            color:
-                0xED4245,
+            color: 0xED4245,
 
             fields: [
                 {
-                    name:
-                        'Actions Detected',
-
+                    name: 'Actions Detected',
                     value:
                         `${actions.length}`,
-
-                    inline:
-                        true,
+                    inline: true,
                 },
-
                 {
-                    name:
-                        'Window',
-
+                    name: 'Window',
                     value:
                         `${securityConfig.antiNuke.actionWindow / 1000}s`,
-
-                    inline:
-                        true,
+                    inline: true,
                 },
             ],
         }
     );
 
+
     /*
-     * Remove dangerous roles.
-     */
+    |--------------------------------------------------------------------------
+    | REMOVE DANGEROUS ROLES
+    |--------------------------------------------------------------------------
+    */
 
     if (
-        securityConfig
-            .antiNuke
-            .removeDangerousRoles
+        securityConfig.antiNuke.removeDangerousRoles
     ) {
         const dangerousRoles =
             member.roles.cache.filter(
                 role =>
-                    role.id !==
-                        guild.id &&
+                    role.id !== guild.id &&
                     !role.managed &&
                     role.editable &&
                     role.permissions.any([
@@ -1059,10 +999,7 @@ async function neutralizeNuker(
                     ])
             );
 
-        for (
-            const role of
-            dangerousRoles.values()
-        ) {
+        for (const role of dangerousRoles.values()) {
             await member.roles
                 .remove(
                     role,
@@ -1072,13 +1009,14 @@ async function neutralizeNuker(
         }
     }
 
-    /*
-     * Automatic timeout.
-     */
 
-    if (
-        member.moderatable
-    ) {
+    /*
+    |--------------------------------------------------------------------------
+    | TIMEOUT
+    |--------------------------------------------------------------------------
+    */
+
+    if (member.moderatable) {
         await member
             .timeout(
                 60 * 60 * 1000,
@@ -1087,14 +1025,15 @@ async function neutralizeNuker(
             .catch(() => {});
     }
 
+
     /*
-     * Automatic ban.
-     */
+    |--------------------------------------------------------------------------
+    | BAN
+    |--------------------------------------------------------------------------
+    */
 
     if (
-        securityConfig
-            .antiNuke
-            .banExecutor &&
+        securityConfig.antiNuke.banExecutor &&
         member.bannable
     ) {
         await guild.members
@@ -1104,13 +1043,13 @@ async function neutralizeNuker(
                     reason:
                         'Anti-nuke protection triggered',
 
-                    deleteMessageSeconds:
-                        0,
+                    deleteMessageSeconds: 0,
                 }
             )
             .catch(() => {});
     }
 }
+
 
 /*
 |--------------------------------------------------------------------------
@@ -1118,9 +1057,7 @@ async function neutralizeNuker(
 |--------------------------------------------------------------------------
 */
 
-export async function enableLockdown(
-    guild
-) {
+export async function enableLockdown(guild) {
     if (
         securityConfig.lockdown.enabled
     ) {
@@ -1130,8 +1067,7 @@ export async function enableLockdown(
     securityConfig.lockdown.enabled =
         true;
 
-    const saved =
-        new Map();
+    const saved = new Map();
 
     for (
         const channel of
@@ -1164,8 +1100,7 @@ export async function enableLockdown(
             .edit(
                 guild.roles.everyone,
                 {
-                    SendMessages:
-                        false,
+                    SendMessages: false,
                 },
                 {
                     reason:
@@ -1175,19 +1110,16 @@ export async function enableLockdown(
             .catch(() => {});
     }
 
-    securityConfig
-        .lockdownChannels
-        .set(
-            guild.id,
-            saved
-        );
+    securityConfig.lockdownChannels.set(
+        guild.id,
+        saved
+    );
 
     return true;
 }
 
-export async function disableLockdown(
-    guild
-) {
+
+export async function disableLockdown(guild) {
     if (
         !securityConfig.lockdown.enabled
     ) {
@@ -1195,9 +1127,9 @@ export async function disableLockdown(
     }
 
     const saved =
-        securityConfig
-            .lockdownChannels
-            .get(guild.id);
+        securityConfig.lockdownChannels.get(
+            guild.id
+        );
 
     if (saved) {
         for (
@@ -1219,25 +1151,23 @@ export async function disableLockdown(
 
             const numericDeny =
                 BigInt(
-                    previousDeny ||
-                        '0'
+                    previousDeny || '0'
                 );
 
-            const currentlyDenied =
+            const wasDenied =
                 (
                     numericDeny &
                     BigInt(
                         PermissionFlagsBits.SendMessages
                     )
-                ) !==
-                0n;
+                ) !== 0n;
 
             await channel.permissionOverwrites
                 .edit(
                     guild.roles.everyone,
                     {
                         SendMessages:
-                            currentlyDenied
+                            wasDenied
                                 ? false
                                 : null,
                     },
@@ -1250,11 +1180,9 @@ export async function disableLockdown(
         }
     }
 
-    securityConfig
-        .lockdownChannels
-        .delete(
-            guild.id
-        );
+    securityConfig.lockdownChannels.delete(
+        guild.id
+    );
 
     securityConfig.lockdown.enabled =
         false;
@@ -1262,22 +1190,23 @@ export async function disableLockdown(
     return true;
 }
 
+
 /*
 |--------------------------------------------------------------------------
-| STATUS
+| SECURITY STATUS
 |--------------------------------------------------------------------------
 */
 
-export function getSecurityStatus(
-    guildId
-) {
+export function getSecurityStatus(guildId) {
     const whitelistCount =
         [...securityConfig.whitelistedUsers]
-            .filter(key =>
-                key.startsWith(
-                    `${guildId}:`
-                )
-            ).length;
+            .filter(
+                key =>
+                    key.startsWith(
+                        `${guildId}:`
+                    )
+            )
+            .length;
 
     return {
         enabled:
@@ -1312,18 +1241,24 @@ export function getSecurityStatus(
     };
 }
 
+
 /*
 |--------------------------------------------------------------------------
 | SECURITY SCAN
 |--------------------------------------------------------------------------
 */
 
-export function scanGuild(
-    guild
-) {
+export function scanGuild(guild) {
     const problems = [];
     const warnings = [];
     const good = [];
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | EVERYONE ADMIN
+    |--------------------------------------------------------------------------
+    */
 
     const everyone =
         guild.roles.everyone;
@@ -1341,6 +1276,13 @@ export function scanGuild(
             '@everyone does not have Administrator.'
         );
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ADMIN ROLES
+    |--------------------------------------------------------------------------
+    */
 
     const adminRoles =
         guild.roles.cache.filter(
@@ -1362,6 +1304,13 @@ export function scanGuild(
             `${adminRoles.size} Administrator role(s) found.`
         );
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | DANGEROUS ROLES
+    |--------------------------------------------------------------------------
+    */
 
     const dangerousRoles =
         guild.roles.cache.filter(
@@ -1386,6 +1335,13 @@ export function scanGuild(
         );
     }
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | ADMIN BOTS
+    |--------------------------------------------------------------------------
+    */
+
     const adminBots =
         guild.members.cache.filter(
             member =>
@@ -1406,6 +1362,13 @@ export function scanGuild(
             `${adminBots.size} bot(s) have Administrator permission.`
         );
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | @EVERYONE MENTION EVERYONE
+    |--------------------------------------------------------------------------
+    */
 
     const publicDangerousChannels =
         guild.channels.cache.filter(
@@ -1428,13 +1391,19 @@ export function scanGuild(
         );
 
     if (
-        publicDangerousChannels.size >
-        0
+        publicDangerousChannels.size > 0
     ) {
         warnings.push(
             `${publicDangerousChannels.size} channel(s) allow @everyone to mention everyone.`
         );
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SECURITY FEATURES
+    |--------------------------------------------------------------------------
+    */
 
     if (
         securityConfig.phishing
@@ -1461,6 +1430,13 @@ export function scanGuild(
         );
     }
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | SCORE
+    |--------------------------------------------------------------------------
+    */
+
     return {
         problems,
         warnings,
@@ -1471,12 +1447,9 @@ export function scanGuild(
                 0,
                 Math.min(
                     100,
-
                     100 -
-                        problems.length *
-                            20 -
-                        warnings.length *
-                            5
+                        problems.length * 20 -
+                        warnings.length * 5
                 )
             ),
     };
