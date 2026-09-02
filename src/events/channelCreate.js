@@ -42,30 +42,6 @@ export default {
                 return;
             }
 
-            const lines = [
-                formatLogLine(
-                    'Channel',
-                    `${channel} • ${channel.name}`
-                ),
-
-                formatLogLine(
-                    'Channel ID',
-                    `\`${channel.id}\``
-                ),
-
-                formatLogLine(
-                    'Type',
-                    getChannelType(channel)
-                ),
-
-                formatLogLine(
-                    'Category',
-                    channel.parent
-                        ? `${channel.parent.name} • \`${channel.parent.id}\``
-                        : 'None'
-                ),
-            ];
-
             await logEvent({
                 client: channel.client,
                 guildId: channel.guild.id,
@@ -73,7 +49,31 @@ export default {
 
                 data: {
                     title: '📁 Channel Created',
-                    lines,
+
+                    lines: [
+                        formatLogLine(
+                            'Channel',
+                            `${channel} • ${channel.name}`
+                        ),
+
+                        formatLogLine(
+                            'Channel ID',
+                            `\`${channel.id}\``
+                        ),
+
+                        formatLogLine(
+                            'Type',
+                            getChannelType(channel)
+                        ),
+
+                        formatLogLine(
+                            'Category',
+                            channel.parent
+                                ? `${channel.parent.name} • \`${channel.parent.id}\``
+                                : 'None'
+                        ),
+                    ],
+
                     quoted: false,
                 },
             });
