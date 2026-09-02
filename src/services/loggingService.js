@@ -1,7 +1,3 @@
-import { ChannelType } from 'discord.js';
-
-import { logger } from '../utils/logger.js';
-
 import {
     buildLogDescription,
     buildStandardLogEmbed,
@@ -15,9 +11,14 @@ import {
     LOG_COLORS,
 } from '../config/logChannels.js';
 
+import { logger } from '../utils/logger.js';
+
+
+// ============================================================
+// EVENT TYPES
+// ============================================================
 
 export const EVENT_TYPES = {
-
     MODERATION_BAN: 'moderation.ban',
     MODERATION_KICK: 'moderation.kick',
     MODERATION_MUTE: 'moderation.mute',
@@ -79,8 +80,11 @@ export const EVENT_TYPES = {
 };
 
 
-export const EVENT_COLORS = {
+// ============================================================
+// EVENT COLORS
+// ============================================================
 
+export const EVENT_COLORS = {
     'moderation.ban': LOG_COLORS.deleted,
     'moderation.kick': LOG_COLORS.deleted,
     'moderation.mute': LOG_COLORS.warning,
@@ -142,8 +146,11 @@ export const EVENT_COLORS = {
 };
 
 
-export const EVENT_ICONS = {
+// ============================================================
+// EVENT ICONS
+// ============================================================
 
+export const EVENT_ICONS = {
     'moderation.ban': '🔨',
     'moderation.kick': '👢',
     'moderation.mute': '🔇',
@@ -205,8 +212,90 @@ export const EVENT_ICONS = {
 };
 
 
-function getChannelId(eventType) {
+// ============================================================
+// LOGGING ENABLE/DISABLE
+// ============================================================
 
+const runtimeLoggingState = new Map();
+
+function getLoggingStateKey(guildId) {
+    return `guild:${guildId}:logging_enabled`;
+}
+
+export async function isLoggingEnabled(client, guildId) {
+    if (!guildId) {
+        return true;
+    }
+
+    if (runtimeLoggingState.has(guildId)) {
+        return runtimeLoggingState.get(guildId);
+    }
+
+    try {
+        if (client?.db?.get) {
+            const stored = await client.db.get(
+                getLoggingStateKey(guildId)
+            );
+
+            if (typeof stored === 'boolean') {
+                runtimeLoggingState.set(
+                    guildId,
+                    stored
+                );
+
+                return stored;
+            }
+        }
+    } catch (error) {
+        logger.warn(
+            `Could not read logging state for ${guildId}:`,
+            error
+        );
+    }
+
+    runtimeLoggingState.set(
+        guildId,
+        true
+    );
+
+    return true;
+}
+
+export async function setLoggingEnabled(
+    client,
+    guildId,
+    enabled
+) {
+    const value = Boolean(enabled);
+
+    runtimeLoggingState.set(
+        guildId,
+        value
+    );
+
+    try {
+        if (client?.db?.set) {
+            await client.db.set(
+                getLoggingStateKey(guildId),
+                value
+            );
+        }
+    } catch (error) {
+        logger.error(
+            `Could not save logging state for ${guildId}:`,
+            error
+        );
+    }
+
+    return value;
+}
+
+
+// ============================================================
+// CHANNEL ROUTING
+// ============================================================
+
+function getChannelId(eventType) {
     if (
         eventType.startsWith('moderation.') ||
         eventType.startsWith('report.')
@@ -245,6 +334,10 @@ function getChannelId(eventType) {
 }
 
 
+// ============================================================
+// MAIN LOG FUNCTION
+// ============================================================
+
 export async function logEvent({
     client,
     guildId,
@@ -254,8 +347,20 @@ export async function logEvent({
     content = null,
     channelId = null,
 }) {
-
     try {
+        if (!client || !guildId || !eventType) {
+            return null;
+        }
+
+        // Respect /logging on/off
+        const enabled = await isLoggingEnabled(
+            client,
+            guildId
+        );
+
+        if (!enabled) {
+            return null;
+        }
 
         const guild =
             client.guilds.cache.get(guildId) ||
@@ -267,25 +372,17 @@ export async function logEvent({
             logger.warn(
                 `Logging: guild ${guildId} not found`
             );
+
             return null;
         }
-
-
-        /*
-         * Explicit channel override.
-         * Otherwise use the fixed channel
-         * for this event type.
-         */
 
         const targetChannelId =
             channelId ||
             getChannelId(eventType);
 
-
         if (!targetChannelId) {
             return null;
         }
-
 
         const channel =
             guild.channels.cache.get(
@@ -295,12 +392,10 @@ export async function logEvent({
                 .fetch(targetChannelId)
                 .catch(() => null);
 
-
         if (
             !channel ||
             !channel.isTextBased()
         ) {
-
             logger.warn(
                 `Logging: channel ${targetChannelId} is unavailable`
             );
@@ -308,19 +403,16 @@ export async function logEvent({
             return null;
         }
 
-
         const me =
             guild.members.me ||
             await guild.members
                 .fetch(client.user.id)
                 .catch(() => null);
 
-
         const permissions =
             me
                 ? channel.permissionsFor(me)
                 : null;
-
 
         if (
             permissions &&
@@ -330,14 +422,12 @@ export async function logEvent({
                 'EmbedLinks',
             ])
         ) {
-
             logger.warn(
                 `Logging: missing permissions in ${targetChannelId}`
             );
 
             return null;
         }
-
 
         const embed =
             createLogEmbed(
@@ -346,36 +436,23 @@ export async function logEvent({
                 data
             );
 
-
         const messageOptions = {
             embeds: [embed],
         };
 
-
         if (content) {
-            messageOptions.content =
-                content;
+            messageOptions.content = content;
         }
 
-
-        if (
-            attachments?.length
-        ) {
-            messageOptions.files =
-                attachments;
+        if (attachments?.length) {
+            messageOptions.files = attachments;
         }
 
-
-        const sent =
-            await channel.send(
-                messageOptions
-            );
-
-
-        return sent;
+        return await channel.send(
+            messageOptions
+        );
 
     } catch (error) {
-
         logger.error(
             `Logging error for ${eventType}:`,
             error
@@ -386,40 +463,36 @@ export async function logEvent({
 }
 
 
+// ============================================================
+// EMBED CREATION
+// ============================================================
+
 function createLogEmbed(
     guild,
     eventType,
     data
 ) {
-
     const color =
         data.color ??
         EVENT_COLORS[eventType] ??
         LOG_COLORS.info;
 
-
     const icon =
         EVENT_ICONS[eventType] ||
         '📌';
-
 
     const title =
         data.title ||
         `${icon} ${formatEventType(eventType)}`;
 
-
     const inlineFields = [];
-
 
     let description =
         data.description || '';
 
-
     if (data.lines?.length) {
-
         description =
             buildLogDescription({
-
                 headline:
                     data.headline ||
                     description ||
@@ -435,9 +508,7 @@ function createLogEmbed(
                     data.meta,
             });
 
-
         if (data.fields?.length) {
-
             const {
                 before,
                 after,
@@ -446,41 +517,24 @@ function createLogEmbed(
                     data.fields
                 );
 
-
             if (before !== null) {
-
                 inlineFields.push({
-
-                    name:
-                        'Before',
-
-                    value:
-                        before,
-
-                    inline:
-                        true,
+                    name: 'Before',
+                    value: before,
+                    inline: true,
                 });
             }
 
-
             if (after !== null) {
-
                 inlineFields.push({
-
-                    name:
-                        'After',
-
-                    value:
-                        after,
-
-                    inline:
-                        true,
+                    name: 'After',
+                    value: after,
+                    inline: true,
                 });
             }
         }
 
     } else if (data.fields?.length) {
-
         const {
             before,
             after,
@@ -490,15 +544,12 @@ function createLogEmbed(
                 data.fields
             );
 
-
         if (
             before !== null ||
             after !== null
         ) {
-
             description =
                 buildLogDescription({
-
                     headline:
                         description ||
                         undefined,
@@ -506,47 +557,28 @@ function createLogEmbed(
                     lines:
                         fieldsToLines(rest),
 
-                    quoted:
-                        true,
+                    quoted: true,
                 });
 
-
             if (before !== null) {
-
                 inlineFields.push({
-
-                    name:
-                        'Before',
-
-                    value:
-                        before,
-
-                    inline:
-                        true,
+                    name: 'Before',
+                    value: before,
+                    inline: true,
                 });
             }
 
-
             if (after !== null) {
-
                 inlineFields.push({
-
-                    name:
-                        'After',
-
-                    value:
-                        after,
-
-                    inline:
-                        true,
+                    name: 'After',
+                    value: after,
+                    inline: true,
                 });
             }
 
         } else {
-
             description =
                 buildLogDescription({
-
                     headline:
                         description ||
                         undefined,
@@ -563,10 +595,8 @@ function createLogEmbed(
         }
 
     } else if (data.meta?.length) {
-
         description =
             buildLogDescription({
-
                 headline:
                     description ||
                     undefined,
@@ -576,9 +606,7 @@ function createLogEmbed(
             });
     }
 
-
     if (data.section?.body) {
-
         description =
             appendContentSection(
                 description,
@@ -588,19 +616,14 @@ function createLogEmbed(
             );
     }
 
-
     if (data.inlineFields?.length) {
-
         inlineFields.push(
             ...data.inlineFields
         );
     }
 
-
     return buildStandardLogEmbed({
-
         color,
-
         title,
 
         description:
@@ -626,10 +649,7 @@ function createLogEmbed(
 
         footer:
             data.footer || {
-
-                text:
-                    guild.name,
-
+                text: guild.name,
                 iconURL:
                     guild.iconURL({
                         dynamic: true,
@@ -640,10 +660,7 @@ function createLogEmbed(
 }
 
 
-function formatEventType(
-    eventType
-) {
-
+function formatEventType(eventType) {
     return eventType
         .split('.')
         .map(
@@ -655,70 +672,52 @@ function formatEventType(
 }
 
 
-/*
- * Compatibility exports.
- *
- * These don't control logging anymore.
- * They are kept so another existing part
- * of the bot won't crash if it imports them.
- */
+// ============================================================
+// COMPATIBILITY EXPORTS
+// ============================================================
 
 export function resolveLogChannel(
     config,
     destination
 ) {
-
-    if (
-        destination === 'audit'
-    ) {
+    if (destination === 'audit') {
         return LOG_CHANNELS.moderation;
     }
 
-    if (
-        destination === 'applications'
-    ) {
+    if (destination === 'applications') {
         return LOG_CHANNELS.moderation;
     }
 
-    if (
-        destination === 'reports'
-    ) {
+    if (destination === 'reports') {
         return LOG_CHANNELS.moderation;
     }
 
     return LOG_CHANNELS.moderation;
 }
 
-
 export function getIgnoreList() {
-
     return {
         users: [],
         channels: [],
     };
 }
 
-
-export function isEventEnabled() {
-
-    return true;
-}
-
-
-export async function getLoggingStatus() {
-
+export async function getLoggingStatus(
+    client,
+    guildId
+) {
     return {
-
         enabled:
-            true,
+            await isLoggingEnabled(
+                client,
+                guildId
+            ),
 
         channels:
             LOG_CHANNELS,
 
         ignore: {
-
             users: [],
-
             channels: [],
         },
 
@@ -729,42 +728,38 @@ export async function getLoggingStatus() {
     };
 }
 
+export async function toggleEventLogging(
+    client,
+    guildId
+) {
+    const current =
+        await isLoggingEnabled(
+            client,
+            guildId
+        );
 
-export async function toggleEventLogging() {
-
-    return true;
+    return await setLoggingEnabled(
+        client,
+        guildId,
+        !current
+    );
 }
-
 
 export async function setLogChannel() {
-
     return true;
 }
-
 
 export async function setLoggingChannel() {
-
     return true;
 }
-
-
-export async function setLoggingEnabled() {
-
-    return true;
-}
-
 
 export async function updateIgnoreList() {
-
     return true;
 }
 
-
 export function resolveApplicationLogChannel() {
-
     return LOG_CHANNELS.moderation;
 }
-
 
 export const LOG_DESTINATIONS = [
     'audit',
