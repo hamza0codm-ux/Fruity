@@ -26,7 +26,7 @@ let twitchTokenExpiresAt = 0;
 
 /*
 |--------------------------------------------------------------------------
-| JSON helper
+| Generic JSON helper
 |--------------------------------------------------------------------------
 */
 
@@ -71,13 +71,35 @@ async function getTwitchAccessToken() {
     'https://id.twitch.tv/oauth2/token'
   );
 
-  url.searchParams.set('client_id', clientId);
-  url.searchParams.set('client_secret', clientSecret);
-  url.searchParams.set('grant_type', 'client_credentials');
+  url.searchParams.set(
+    'client_id',
+    clientId
+  );
 
-  const data = await fetchJson(url.toString(), {
-    method: 'POST',
-  });
+  url.searchParams.set(
+    'client_secret',
+    clientSecret
+  );
+
+  url.searchParams.set(
+    'grant_type',
+    'client_credentials'
+  );
+
+  const response = await fetch(
+    url.toString(),
+    {
+      method: 'POST',
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Twitch authentication failed with HTTP ${response.status}.`
+    );
+  }
+
+  const data = await response.json();
 
   twitchAccessToken = data.access_token;
 
@@ -90,18 +112,72 @@ async function getTwitchAccessToken() {
 
 /*
 |--------------------------------------------------------------------------
-| Twitch
+| Extract Twitch username
 |--------------------------------------------------------------------------
 */
 
-async function checkTwitch(identifier) {
-  const clientId = process.env.TWITCH_CLIENT_ID;
+function getTwitchUsername(value) {
+  const input = String(value || '').trim();
 
-  if (!clientId) {
-    throw new Error('TWITCH_CLIENT_ID is missing.');
+  if (!input) {
+    return '';
   }
 
-  const token = await getTwitchAccessToken();
+  try {
+    const url = new URL(
+      input.startsWith('http')
+        ? input
+        : `https://${input}`
+    );
+
+    const parts = url.pathname
+      .split('/')
+      .filter(Boolean);
+
+    return (
+      parts[0] || ''
+    )
+      .replace(/^@/, '')
+      .trim();
+  } catch {
+    return input
+      .replace(
+        /^https?:\/\/(www\.)?twitch\.tv\//i,
+        ''
+      )
+      .split(/[/?#]/)[0]
+      .replace(/^@/, '')
+      .trim();
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Twitch live check
+|--------------------------------------------------------------------------
+*/
+
+async function checkTwitch(value) {
+  const clientId =
+    process.env.TWITCH_CLIENT_ID;
+
+  if (!clientId) {
+    throw new Error(
+      'TWITCH_CLIENT_ID is missing.'
+    );
+  }
+
+  const username =
+    getTwitchUsername(value);
+
+  if (!username) {
+    return {
+      live: false,
+    };
+  }
+
+  const token =
+    await getTwitchAccessToken();
 
   const url = new URL(
     'https://api.twitch.tv/helix/streams'
@@ -109,17 +185,25 @@ async function checkTwitch(identifier) {
 
   url.searchParams.set(
     'user_login',
-    String(identifier).replace(/^@/, '').trim()
+    username
   );
 
-  const data = await fetchJson(url.toString(), {
-    headers: {
-      'Client-ID': clientId,
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  const data =
+    await fetchJson(
+      url.toString(),
+      {
+        headers: {
+          'Client-ID':
+            clientId,
 
-  const stream = data?.data?.[0];
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+  const stream =
+    data?.data?.[0];
 
   if (!stream) {
     return {
@@ -129,63 +213,175 @@ async function checkTwitch(identifier) {
 
   return {
     live: true,
-    title: stream.title || 'Live on Twitch',
-    url: `https://twitch.tv/${String(identifier).replace(/^@/, '')}`,
-    game: stream.game_name || null,
-    viewerCount: Number(stream.viewer_count || 0),
+
+    title:
+      stream.title ||
+      'Live on Twitch',
+
+    url:
+      `https://www.twitch.tv/${username}`,
+
+    game:
+      stream.game_name ||
+      null,
+
+    viewerCount:
+      Number(
+        stream.viewer_count || 0
+      ),
   };
 }
 
 /*
 |--------------------------------------------------------------------------
-| YouTube
+| Extract YouTube channel information
 |--------------------------------------------------------------------------
 */
 
-async function checkYouTube(identifier) {
-  const apiKey = process.env.YOUTUBE_API_KEY;
+function parseYouTubeLink(value) {
+  const input =
+    String(value || '').trim();
 
-  if (!apiKey) {
-    throw new Error('YOUTUBE_API_KEY is missing.');
+  if (!input) {
+    return {
+      channelId: null,
+      handle: null,
+    };
   }
 
-  const original = String(identifier).trim();
+  let url;
 
-  let clean = original
-    .replace(
-      /^https?:\/\/(www\.)?youtube\.com\//i,
-      ''
-    )
-    .replace(
-      /^https?:\/\/youtu\.be\//i,
-      ''
-    )
-    .trim();
+  try {
+    url = new URL(
+      input.startsWith('http')
+        ? input
+        : `https://${input}`
+    );
+  } catch {
+    return {
+      channelId: null,
+      handle: null,
+    };
+  }
 
-  let channelId = null;
+  const pathname =
+    url.pathname;
 
-  if (/^UC[a-zA-Z0-9_-]{20,}$/.test(clean)) {
-    channelId = clean;
-  } else {
-    const handle =
-      clean.startsWith('@')
-        ? clean
-        : `@${clean}`;
+  const channelMatch =
+    pathname.match(
+      /^\/channel\/([^/]+)/i
+    );
 
-    const searchUrl = new URL(
+  if (channelMatch?.[1]) {
+    return {
+      channelId:
+        channelMatch[1],
+      handle: null,
+    };
+  }
+
+  const handleMatch =
+    pathname.match(
+      /^\/@([^/]+)/i
+    );
+
+  if (handleMatch?.[1]) {
+    return {
+      channelId: null,
+      handle:
+        handleMatch[1],
+    };
+  }
+
+  return {
+    channelId: null,
+    handle: null,
+  };
+}
+
+/*
+|--------------------------------------------------------------------------
+| Resolve YouTube channel ID
+|--------------------------------------------------------------------------
+*/
+
+async function resolveYouTubeChannelId(
+  value
+) {
+  const apiKey =
+    process.env.YOUTUBE_API_KEY;
+
+  if (!apiKey) {
+    throw new Error(
+      'YOUTUBE_API_KEY is missing.'
+    );
+  }
+
+  const {
+    channelId,
+    handle,
+  } =
+    parseYouTubeLink(value);
+
+  if (channelId) {
+    return channelId;
+  }
+
+  if (!handle) {
+    return null;
+  }
+
+  const url =
+    new URL(
       'https://www.googleapis.com/youtube/v3/channels'
     );
 
-    searchUrl.searchParams.set('part', 'id');
-    searchUrl.searchParams.set('forHandle', handle);
-    searchUrl.searchParams.set('key', apiKey);
+  url.searchParams.set(
+    'part',
+    'id'
+  );
 
-    const channelData =
-      await fetchJson(searchUrl.toString());
+  url.searchParams.set(
+    'forHandle',
+    handle
+  );
 
-    channelId =
-      channelData?.items?.[0]?.id || null;
+  url.searchParams.set(
+    'key',
+    apiKey
+  );
+
+  const data =
+    await fetchJson(
+      url.toString()
+    );
+
+  return (
+    data?.items?.[0]?.id ||
+    null
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| YouTube live check
+|--------------------------------------------------------------------------
+*/
+
+async function checkYouTube(value) {
+  const apiKey =
+    process.env.YOUTUBE_API_KEY;
+
+  if (!apiKey) {
+    throw new Error(
+      'YOUTUBE_API_KEY is missing.'
+    );
   }
+
+  const channelId =
+    await resolveYouTubeChannelId(
+      value
+    );
 
   if (!channelId) {
     return {
@@ -193,21 +389,48 @@ async function checkYouTube(identifier) {
     };
   }
 
-  const liveUrl = new URL(
-    'https://www.googleapis.com/youtube/v3/search'
+  const url =
+    new URL(
+      'https://www.googleapis.com/youtube/v3/search'
+    );
+
+  url.searchParams.set(
+    'part',
+    'snippet'
   );
 
-  liveUrl.searchParams.set('part', 'snippet');
-  liveUrl.searchParams.set('channelId', channelId);
-  liveUrl.searchParams.set('eventType', 'live');
-  liveUrl.searchParams.set('type', 'video');
-  liveUrl.searchParams.set('maxResults', '1');
-  liveUrl.searchParams.set('key', apiKey);
+  url.searchParams.set(
+    'channelId',
+    channelId
+  );
+
+  url.searchParams.set(
+    'eventType',
+    'live'
+  );
+
+  url.searchParams.set(
+    'type',
+    'video'
+  );
+
+  url.searchParams.set(
+    'maxResults',
+    '1'
+  );
+
+  url.searchParams.set(
+    'key',
+    apiKey
+  );
 
   const data =
-    await fetchJson(liveUrl.toString());
+    await fetchJson(
+      url.toString()
+    );
 
-  const video = data?.items?.[0];
+  const video =
+    data?.items?.[0];
 
   if (!video) {
     return {
@@ -215,7 +438,8 @@ async function checkYouTube(identifier) {
     };
   }
 
-  const videoId = video.id?.videoId;
+  const videoId =
+    video.id?.videoId;
 
   if (!videoId) {
     return {
@@ -225,40 +449,58 @@ async function checkYouTube(identifier) {
 
   return {
     live: true,
+
     title:
       video.snippet?.title ||
       'Live on YouTube',
+
     url:
-      `https://youtube.com/watch?v=${videoId}`,
+      `https://www.youtube.com/watch?v=${videoId}`,
+
     game: null,
+
     viewerCount: 0,
   };
 }
 
 /*
 |--------------------------------------------------------------------------
-| TikTok
-|--------------------------------------------------------------------------
-|
-| TikTok does not provide a simple public "is this creator live?"
-| endpoint like Twitch.
-|
-| This implementation checks the creator's TikTok page and looks
-| for live indicators in the returned HTML.
-|
-| IMPORTANT:
-| TikTok may change its HTML or block automated requests.
-| If TikTok blocks the request, the monitor simply reports the
-| creator as offline instead of crashing the monitor.
+| TikTok username
 |--------------------------------------------------------------------------
 */
 
-async function checkTikTok(identifier) {
-  const username = String(identifier)
-    .trim()
+function getTikTokUsername(value) {
+  const input =
+    String(value || '').trim();
+
+  if (!input) {
+    return '';
+  }
+
+  return input
+    .replace(
+      /^https?:\/\/(www\.)?tiktok\.com\/@?/i,
+      ''
+    )
     .replace(/^@/, '')
-    .replace(/^https?:\/\/(www\.)?tiktok\.com\/@?/i, '')
-    .split(/[/?#]/)[0];
+    .split(/[/?#]/)[0]
+    .trim();
+}
+
+/*
+|--------------------------------------------------------------------------
+| TikTok live check
+|--------------------------------------------------------------------------
+|
+| TikTok doesn't provide the same simple public live endpoint
+| that Twitch does, so this uses the creator page.
+|
+|--------------------------------------------------------------------------
+*/
+
+async function checkTikTok(value) {
+  const username =
+    getTikTokUsername(value);
 
   if (!username) {
     return {
@@ -267,23 +509,30 @@ async function checkTikTok(identifier) {
   }
 
   const url =
-    `https://www.tiktok.com/@${encodeURIComponent(username)}`;
+    `https://www.tiktok.com/@${encodeURIComponent(
+      username
+    )}`;
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
-          'AppleWebKit/537.36 (KHTML, like Gecko) ' +
-          'Chrome/131.0.0.0 Safari/537.36',
-        Accept:
-          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language':
-          'en-US,en;q=0.9',
-        Referer:
-          'https://www.tiktok.com/',
-      },
-    });
+    const response =
+      await fetch(
+        url,
+        {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
+
+            Accept:
+              'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+
+            'Accept-Language':
+              'en-US,en;q=0.9',
+
+            Referer:
+              'https://www.tiktok.com/',
+          },
+        }
+      );
 
     if (!response.ok) {
       console.warn(
@@ -295,33 +544,31 @@ async function checkTikTok(identifier) {
       };
     }
 
-    const html = await response.text();
+    const html =
+      await response.text();
 
-    const lower = html.toLowerCase();
+    const lower =
+      html.toLowerCase();
 
-    /*
-     * TikTok has used several different live indicators.
-     * Check multiple possibilities rather than relying on
-     * one exact HTML string.
-     */
-
-    const liveIndicators = [
+    const indicators = [
       '"islive":true',
-      '"is_live":true',
       '"islive": true',
+      '"is_live":true',
       '"is_live": true',
       '"live":true',
       '"live": true',
       '"livestatus":1',
-      '"live_status":1',
       '"livestatus": 1',
+      '"live_status":1',
       '"live_status": 1',
     ];
 
     const isLive =
-      liveIndicators.some(
+      indicators.some(
         indicator =>
-          lower.includes(indicator)
+          lower.includes(
+            indicator
+          )
       );
 
     if (!isLive) {
@@ -330,11 +577,8 @@ async function checkTikTok(identifier) {
       };
     }
 
-    /*
-     * Try to extract a title if TikTok exposes one.
-     */
-
-    let title = 'Live on TikTok';
+    let title =
+      'Live on TikTok';
 
     const titlePatterns = [
       /"roomtitle":"([^"]+)"/i,
@@ -343,13 +587,23 @@ async function checkTikTok(identifier) {
       /"live_title":"([^"]+)"/i,
     ];
 
-    for (const pattern of titlePatterns) {
-      const match = html.match(pattern);
+    for (
+      const pattern of titlePatterns
+    ) {
+      const match =
+        html.match(pattern);
 
       if (match?.[1]) {
-        title = match[1]
-          .replace(/\\"/g, '"')
-          .replace(/\\u0026/g, '&');
+        title =
+          match[1]
+            .replace(
+              /\\"/g,
+              '"'
+            )
+            .replace(
+              /\\u0026/g,
+              '&'
+            );
 
         break;
       }
@@ -357,9 +611,14 @@ async function checkTikTok(identifier) {
 
     return {
       live: true,
+
       title,
-      url: `https://www.tiktok.com/@${username}/live`,
+
+      url:
+        `https://www.tiktok.com/@${username}/live`,
+
       game: null,
+
       viewerCount: 0,
     };
   } catch (error) {
@@ -380,30 +639,42 @@ async function checkTikTok(identifier) {
 |--------------------------------------------------------------------------
 */
 
-async function checkChannel(channel) {
+async function checkChannel(feed) {
   const platform =
-    String(channel.platform || '').toLowerCase();
+    String(
+      feed.platform || ''
+    ).toLowerCase();
+
+  /*
+   * New system uses link.
+   *
+   * identifier is kept as a fallback for
+   * old configurations.
+   */
+  const source =
+    feed.link ||
+    feed.identifier;
 
   if (platform === 'twitch') {
     return checkTwitch(
-      channel.identifier
+      source
     );
   }
 
   if (platform === 'youtube') {
     return checkYouTube(
-      channel.identifier
+      source
     );
   }
 
   if (platform === 'tiktok') {
     return checkTikTok(
-      channel.identifier
+      source
     );
   }
 
   console.warn(
-    `[Social Feed] Unknown platform "${channel.platform}" for ${channel.name}.`
+    `[Social Feed] Unknown platform "${feed.platform}" for "${feed.name}".`
   );
 
   return {
@@ -413,52 +684,121 @@ async function checkChannel(channel) {
 
 /*
 |--------------------------------------------------------------------------
-| Resolve Discord member
+| Platform name
 |--------------------------------------------------------------------------
 */
 
-async function resolveCreatorMember(guild, channel) {
-  let member = null;
+function getPlatformName(
+  platform
+) {
+  switch (
+    String(platform || '')
+      .toLowerCase()
+  ) {
+    case 'twitch':
+      return 'Twitch';
 
-  const identifier =
-    String(channel.identifier || '').trim();
+    case 'youtube':
+      return 'YouTube';
 
-  /*
-   * Discord user ID
-   */
+    case 'tiktok':
+      return 'TikTok';
 
-  if (/^\d{17,20}$/.test(identifier)) {
-    member =
-      guild.members.cache.get(identifier) ||
-      await guild.members
-        .fetch(identifier)
-        .catch(() => null);
+    default:
+      return 'Social Media';
   }
+}
 
+/*
+|--------------------------------------------------------------------------
+| Resolve Discord creator
+|--------------------------------------------------------------------------
+*/
+
+async function resolveCreatorMember(
+  guild,
+  feed
+) {
   /*
-   * Username / display name
+   * NEW:
+   * Use the Discord user selected in
+   * /social add.
    */
-
-  if (!member) {
-    const target =
-      String(channel.name || identifier)
-        .toLowerCase()
-        .replace(/^@/, '');
-
-    member =
-      guild.members.cache.find(
-        m =>
-          m.user.username
-            .toLowerCase() === target
+  if (feed.discordUserId) {
+    const member =
+      guild.members.cache.get(
+        feed.discordUserId
       ) ||
-      guild.members.cache.find(
-        m =>
-          m.displayName
-            .toLowerCase() === target
-      );
+      await guild.members
+        .fetch(
+          feed.discordUserId
+        )
+        .catch(() => null);
+
+    if (member) {
+      return member;
+    }
   }
 
-  return member;
+  /*
+   * Backwards compatibility.
+   */
+  const identifier =
+    String(
+      feed.identifier || ''
+    ).trim();
+
+  if (
+    /^\d{17,20}$/.test(
+      identifier
+    )
+  ) {
+    const member =
+      guild.members.cache.get(
+        identifier
+      ) ||
+      await guild.members
+        .fetch(
+          identifier
+        )
+        .catch(() => null);
+
+    if (member) {
+      return member;
+    }
+  }
+
+  /*
+   * Final fallback:
+   * Try custom feed name against
+   * usernames/display names.
+   */
+  const target =
+    String(
+      feed.name || ''
+    )
+      .toLowerCase()
+      .replace(/^@/, '')
+      .trim();
+
+  if (!target) {
+    return null;
+  }
+
+  return (
+    guild.members.cache.find(
+      member =>
+        member.user.username
+          .toLowerCase() === target
+    ) ||
+    guild.members.cache.find(
+      member =>
+        String(
+          member.displayName || ''
+        ).toLowerCase() === target
+    ) ||
+    null
+  );
 }
 
 /*
@@ -467,16 +807,23 @@ async function resolveCreatorMember(guild, channel) {
 |--------------------------------------------------------------------------
 */
 
-async function addLiveRole(guild, channel) {
+async function addLiveRole(
+  guild,
+  feed
+) {
   const role =
-    guild.roles.cache.get(LIVE_ROLE_ID) ||
+    guild.roles.cache.get(
+      LIVE_ROLE_ID
+    ) ||
     await guild.roles
-      .fetch(LIVE_ROLE_ID)
+      .fetch(
+        LIVE_ROLE_ID
+      )
       .catch(() => null);
 
   if (!role) {
     console.error(
-      `[Social Feed] Live role ${LIVE_ROLE_ID} was not found in ${guild.name}.`
+      `[Social Feed] Live role ${LIVE_ROLE_ID} was not found.`
     );
 
     return false;
@@ -485,12 +832,12 @@ async function addLiveRole(guild, channel) {
   const member =
     await resolveCreatorMember(
       guild,
-      channel
+      feed
     );
 
   if (!member) {
     console.warn(
-      `[Social Feed] Could not find Discord member for "${channel.name}".`
+      `[Social Feed] Could not find Discord user for "${feed.name}".`
     );
 
     return false;
@@ -507,17 +854,17 @@ async function addLiveRole(guild, channel) {
   try {
     await member.roles.add(
       role,
-      `Live notification: ${channel.name} is live`
+      `Social feed: ${feed.name} went live`
     );
 
     console.log(
-      `[Social Feed] Added live role to ${member.user.tag} for ${channel.name}.`
+      `[Social Feed] Added live role to ${member.user.tag} for ${feed.name}.`
     );
 
     return true;
   } catch (error) {
     console.error(
-      `[Social Feed] Failed to add live role for ${channel.name}:`,
+      `[Social Feed] Failed adding live role for ${feed.name}:`,
       error
     );
 
@@ -531,11 +878,18 @@ async function addLiveRole(guild, channel) {
 |--------------------------------------------------------------------------
 */
 
-async function removeLiveRole(guild, channel) {
+async function removeLiveRole(
+  guild,
+  feed
+) {
   const role =
-    guild.roles.cache.get(LIVE_ROLE_ID) ||
+    guild.roles.cache.get(
+      LIVE_ROLE_ID
+    ) ||
     await guild.roles
-      .fetch(LIVE_ROLE_ID)
+      .fetch(
+        LIVE_ROLE_ID
+      )
       .catch(() => null);
 
   if (!role) {
@@ -545,7 +899,7 @@ async function removeLiveRole(guild, channel) {
   const member =
     await resolveCreatorMember(
       guild,
-      channel
+      feed
     );
 
   if (!member) {
@@ -563,7 +917,7 @@ async function removeLiveRole(guild, channel) {
   try {
     await member.roles.remove(
       role,
-      `Live notification ended: ${channel.name}`
+      `Social feed: ${feed.name} went offline`
     );
 
     console.log(
@@ -573,35 +927,11 @@ async function removeLiveRole(guild, channel) {
     return true;
   } catch (error) {
     console.error(
-      `[Social Feed] Failed to remove live role for ${channel.name}:`,
+      `[Social Feed] Failed removing live role for ${feed.name}:`,
       error
     );
 
     return false;
-  }
-}
-
-/*
-|--------------------------------------------------------------------------
-| Platform display name
-|--------------------------------------------------------------------------
-*/
-
-function getPlatformName(platform) {
-  switch (
-    String(platform || '').toLowerCase()
-  ) {
-    case 'twitch':
-      return 'Twitch';
-
-    case 'youtube':
-      return 'YouTube';
-
-    case 'tiktok':
-      return 'TikTok';
-
-    default:
-      return platform || 'Social Media';
   }
 }
 
@@ -613,27 +943,21 @@ function getPlatformName(platform) {
 
 async function sendLiveNotification(
   guild,
-  channel,
+  feed,
   liveData
 ) {
   /*
    * IMPORTANT:
    *
-   * 1542878558274457691 is the LIVE ROLE.
-   *
-   * It is NOT the notification channel.
-   *
-   * The notification channel is configured using:
-   *
-   * SOCIAL_LIVE_CHANNEL_ID
+   * Each social feed now has its OWN
+   * live notification channel.
    */
-
   const notificationChannelId =
-    process.env.SOCIAL_LIVE_CHANNEL_ID;
+    feed.liveChannelId;
 
   if (!notificationChannelId) {
     console.warn(
-      '[Social Feed] SOCIAL_LIVE_CHANNEL_ID is not configured.'
+      `[Social Feed] No live channel configured for "${feed.name}".`
     );
 
     return false;
@@ -644,7 +968,9 @@ async function sendLiveNotification(
       notificationChannelId
     ) ||
     await guild.channels
-      .fetch(notificationChannelId)
+      .fetch(
+        notificationChannelId
+      )
       .catch(() => null);
 
   if (
@@ -652,7 +978,7 @@ async function sendLiveNotification(
     !notificationChannel.isTextBased()
   ) {
     console.warn(
-      `[Social Feed] Live notification channel ${notificationChannelId} was not found.`
+      `[Social Feed] Live channel ${notificationChannelId} for "${feed.name}" was not found.`
     );
 
     return false;
@@ -660,69 +986,106 @@ async function sendLiveNotification(
 
   const platform =
     getPlatformName(
-      channel.platform
+      feed.platform
     );
 
   const embed =
     new EmbedBuilder()
       .setColor(0xF8D568)
       .setTitle(
-        `🔴 ${channel.name} is LIVE!`
+        `🔴 ${feed.name} is LIVE!`
       )
       .setDescription(
-        `**${channel.name}** has just gone live on **${platform}**!\n\n` +
+        `**${feed.name}** has just gone live on **${platform}**!\n\n` +
         `**${liveData.title || 'Live now'}**`
       )
       .addFields({
-        name: 'Watch now',
+        name:
+          'Watch now',
         value:
           `[Open stream](${liveData.url})`,
-        inline: false,
+        inline:
+          false,
       })
       .setTimestamp();
 
   if (
     liveData.viewerCount &&
-    Number(liveData.viewerCount) > 0
+    Number(
+      liveData.viewerCount
+    ) > 0
   ) {
     embed.addFields({
-      name: 'Viewers',
+      name:
+        'Viewers',
       value:
-        String(liveData.viewerCount),
-      inline: true,
+        String(
+          liveData.viewerCount
+        ),
+      inline:
+        true,
     });
   }
 
   if (liveData.game) {
     embed.addFields({
-      name: 'Category',
+      name:
+        'Category',
       value:
-        String(liveData.game).slice(
+        String(
+          liveData.game
+        ).slice(
           0,
           1024
         ),
-      inline: true,
+      inline:
+        true,
+    });
+  }
+
+  if (feed.discordUserId) {
+    embed.addFields({
+      name:
+        'Creator',
+      value:
+        `<@${feed.discordUserId}>`,
+      inline:
+        true,
     });
   }
 
   const content =
-    channel.pingRoleId
-      ? `<@&${channel.pingRoleId}>`
+    feed.pingRoleId
+      ? `<@&${feed.pingRoleId}>`
       : null;
 
-  await notificationChannel.send({
-    content,
-    embeds: [embed],
+  try {
+    await notificationChannel.send({
+      content,
 
-    allowedMentions: {
-      roles:
-        channel.pingRoleId
-          ? [channel.pingRoleId]
-          : [],
-    },
-  });
+      embeds: [
+        embed,
+      ],
 
-  return true;
+      allowedMentions: {
+        roles:
+          feed.pingRoleId
+            ? [
+                feed.pingRoleId,
+              ]
+            : [],
+      },
+    });
+
+    return true;
+  } catch (error) {
+    console.error(
+      `[Social Feed] Failed sending live notification for ${feed.name}:`,
+      error
+    );
+
+    return false;
+  }
 }
 
 /*
@@ -736,39 +1099,63 @@ async function checkGuild(
   guild
 ) {
   if (
-    checkingGuilds.has(guild.id)
+    checkingGuilds.has(
+      guild.id
+    )
   ) {
     return;
   }
 
-  checkingGuilds.add(guild.id);
+  checkingGuilds.add(
+    guild.id
+  );
 
   try {
-    const channels =
+    const feeds =
       await getSocialFeedChannels(
         client,
         guild.id
       );
 
-    if (!channels.length) {
+    if (!feeds.length) {
       return;
     }
 
-    for (const channel of channels) {
+    for (
+      const feed of feeds
+    ) {
       try {
+        /*
+         * POSTS ONLY:
+         *
+         * Don't run live API requests.
+         */
+        if (
+          feed.notificationType ===
+          'posts'
+        ) {
+          continue;
+        }
+
         const liveData =
           await checkChannel(
-            channel
+            feed
           );
 
         const wasLive =
-          Boolean(channel.isLive);
+          Boolean(
+            feed.isLive
+          );
 
         const isLive =
-          Boolean(liveData.live);
+          Boolean(
+            liveData.live
+          );
 
         /*
+         * ---------------------------------------------------------------
          * OFFLINE -> LIVE
+         * ---------------------------------------------------------------
          */
 
         if (
@@ -776,23 +1163,32 @@ async function checkGuild(
           isLive
         ) {
           console.log(
-            `[Social Feed] ${channel.name} (${getPlatformName(channel.platform)}) went LIVE.`
+            `[Social Feed] ${feed.name} (${getPlatformName(feed.platform)}) went LIVE.`
           );
 
+          /*
+           * Add the global live role.
+           */
           await addLiveRole(
             guild,
-            channel
+            feed
           );
 
+          /*
+           * Send notification to this feed's
+           * configured live channel.
+           */
           await sendLiveNotification(
             guild,
-            channel,
+            feed,
             liveData
           );
         }
 
         /*
+         * ---------------------------------------------------------------
          * LIVE -> OFFLINE
+         * ---------------------------------------------------------------
          */
 
         if (
@@ -800,17 +1196,19 @@ async function checkGuild(
           !isLive
         ) {
           console.log(
-            `[Social Feed] ${channel.name} (${getPlatformName(channel.platform)}) went OFFLINE.`
+            `[Social Feed] ${feed.name} (${getPlatformName(feed.platform)}) went OFFLINE.`
           );
 
           await removeLiveRole(
             guild,
-            channel
+            feed
           );
         }
 
         /*
-         * Save state.
+         * ---------------------------------------------------------------
+         * Save state
+         * ---------------------------------------------------------------
          */
 
         if (
@@ -819,14 +1217,14 @@ async function checkGuild(
           await updateSocialFeedLiveState(
             client,
             guild.id,
-            channel.id,
+            feed.id,
             isLive
           );
         }
       } catch (error) {
         console.error(
-          `[Social Feed] Failed checking ${channel.name} (${channel.platform}):`,
-          error
+          `[Social Feed] Failed checking "${feed.name}" (${feed.platform}):`,
+          error.message
         );
       }
     }
@@ -839,13 +1237,17 @@ async function checkGuild(
 
 /*
 |--------------------------------------------------------------------------
-| Run monitor once
+| Run live check once
 |--------------------------------------------------------------------------
 */
 
 export async function runSocialLiveCheck(
   client
 ) {
+  if (!client) {
+    return;
+  }
+
   for (
     const guild of
     client.guilds.cache.values()
@@ -870,42 +1272,39 @@ export function startSocialLiveMonitor(
     return;
   }
 
-  monitorStarted = true;
+  monitorStarted =
+    true;
 
   console.log(
     '[Social Feed] Live monitor started.'
   );
 
   /*
-   * Run immediately.
+   * Initial check.
    */
-
   runSocialLiveCheck(
     client
-  ).catch(
-    error =>
-      console.error(
-        '[Social Feed] Initial check failed:',
-        error
-      )
-  );
+  ).catch(error => {
+    console.error(
+      '[Social Feed] Initial live check failed:',
+      error
+    );
+  });
 
   /*
    * Check every minute.
    */
-
   monitorTimer =
     setInterval(
       () => {
         runSocialLiveCheck(
           client
-        ).catch(
-          error =>
-            console.error(
-              '[Social Feed] Scheduled check failed:',
-              error
-            )
-        );
+        ).catch(error => {
+          console.error(
+            '[Social Feed] Scheduled live check failed:',
+            error
+          );
+        });
       },
       CHECK_INTERVAL
     );
@@ -926,7 +1325,8 @@ export function stopSocialLiveMonitor() {
     monitorTimer = null;
   }
 
-  monitorStarted = false;
+  monitorStarted =
+    false;
 
   console.log(
     '[Social Feed] Live monitor stopped.'
