@@ -1,21 +1,19 @@
 /*
 |--------------------------------------------------------------------------
-| Social Media Live Feed Configuration
+| Social Media Feed Configuration
 |--------------------------------------------------------------------------
 |
-| Stores the creators/channels configured through Discord commands.
+| Stores configurable social media feeds.
 |
-| Supported platforms:
+| Supported:
 |   - Twitch
 |   - YouTube
 |   - TikTok
 |
-| The live role is intentionally fixed:
-|
-|   1542878558274457691
-|
-| That role is automatically added while a configured creator is live
-| and removed when they go offline.
+| Notification types:
+|   - live
+|   - posts
+|   - both
 |
 |--------------------------------------------------------------------------
 */
@@ -31,21 +29,21 @@ export const LIVE_ROLE_ID =
 const CONFIG_KEY =
   'socialFeedChannels';
 
-/*
-|--------------------------------------------------------------------------
-| Supported platforms
-|--------------------------------------------------------------------------
-*/
-
 const SUPPORTED_PLATFORMS = [
   'twitch',
   'youtube',
   'tiktok',
 ];
 
+const SUPPORTED_NOTIFICATION_TYPES = [
+  'live',
+  'posts',
+  'both',
+];
+
 /*
 |--------------------------------------------------------------------------
-| Normalise stored configuration
+| Normalise channels
 |--------------------------------------------------------------------------
 */
 
@@ -60,54 +58,133 @@ function normaliseChannels(value) {
         channel &&
         typeof channel === 'object'
     )
-    .map(channel => ({
-      id: String(
-        channel.id || ''
-      ),
+    .map(channel => {
+      const platform =
+        String(
+          channel.platform || ''
+        )
+          .trim()
+          .toLowerCase();
 
-      name: String(
-        channel.name || ''
-      ).trim(),
-
-      platform: String(
-        channel.platform || ''
-      ).toLowerCase(),
-
-      identifier: String(
-        channel.identifier || ''
-      ).trim(),
-
-      pingRoleId:
-        channel.pingRoleId
+      const notificationType =
+        SUPPORTED_NOTIFICATION_TYPES.includes(
+          String(
+            channel.notificationType || ''
+          ).toLowerCase()
+        )
           ? String(
-              channel.pingRoleId
-            )
-          : null,
+              channel.notificationType
+            ).toLowerCase()
+          : 'live';
 
-      isLive: Boolean(
-        channel.isLive
-      ),
+      return {
+        id: String(
+          channel.id || ''
+        ),
 
-      lastChecked:
-        channel.lastChecked
-          ? Number(
-              channel.lastChecked
-            )
-          : 0,
-    }))
+        name: String(
+          channel.name || ''
+        ).trim(),
+
+        platform,
+
+        /*
+         * New system stores the complete
+         * social media URL.
+         */
+        link: String(
+          channel.link ||
+          channel.url ||
+          ''
+        ).trim(),
+
+        /*
+         * Keep identifier for backwards
+         * compatibility with existing feeds.
+         */
+        identifier: String(
+          channel.identifier ||
+          ''
+        ).trim(),
+
+        notificationType,
+
+        liveChannelId:
+          channel.liveChannelId
+            ? String(
+                channel.liveChannelId
+              )
+            : null,
+
+        postChannelId:
+          channel.postChannelId
+            ? String(
+                channel.postChannelId
+              )
+            : null,
+
+        discordUserId:
+          channel.discordUserId
+            ? String(
+                channel.discordUserId
+              )
+            : null,
+
+        pingRoleId:
+          channel.pingRoleId
+            ? String(
+                channel.pingRoleId
+              )
+            : null,
+
+        /*
+         * Runtime live state.
+         */
+        isLive: Boolean(
+          channel.isLive
+        ),
+
+        lastChecked:
+          channel.lastChecked
+            ? Number(
+                channel.lastChecked
+              )
+            : 0,
+
+        /*
+         * Runtime post state.
+         */
+        lastPostId:
+          channel.lastPostId
+            ? String(
+                channel.lastPostId
+              )
+            : null,
+
+        lastPostAt:
+          channel.lastPostAt
+            ? Number(
+                channel.lastPostAt
+              )
+            : 0,
+      };
+    })
     .filter(channel =>
       channel.id &&
       channel.name &&
       SUPPORTED_PLATFORMS.includes(
         channel.platform
       ) &&
-      channel.identifier
+      (
+        channel.link ||
+        channel.identifier
+      )
     );
 }
 
 /*
 |--------------------------------------------------------------------------
-| Get all configured social channels
+| Get channels
 |--------------------------------------------------------------------------
 */
 
@@ -128,7 +205,7 @@ export async function getSocialFeedChannels(
 
 /*
 |--------------------------------------------------------------------------
-| Save all configured social channels
+| Save channels
 |--------------------------------------------------------------------------
 */
 
@@ -154,7 +231,7 @@ export async function saveSocialFeedChannels(
 
 /*
 |--------------------------------------------------------------------------
-| Add a channel
+| Add channel
 |--------------------------------------------------------------------------
 */
 
@@ -164,7 +241,12 @@ export async function addSocialFeedChannel(
   {
     name,
     platform,
-    identifier,
+    link,
+    identifier = '',
+    notificationType = 'live',
+    liveChannelId = null,
+    postChannelId = null,
+    discordUserId = null,
     pingRoleId = null,
   }
 ) {
@@ -174,14 +256,21 @@ export async function addSocialFeedChannel(
       guildId
     );
 
-  const cleanPlatform =
-    String(
-      platform || ''
-    ).toLowerCase();
-
   const cleanName =
     String(
       name || ''
+    ).trim();
+
+  const cleanPlatform =
+    String(
+      platform || ''
+    )
+      .trim()
+      .toLowerCase();
+
+  const cleanLink =
+    String(
+      link || ''
     ).trim();
 
   const cleanIdentifier =
@@ -189,12 +278,16 @@ export async function addSocialFeedChannel(
       identifier || ''
     ).trim();
 
-  if (
-    !cleanName ||
-    !cleanIdentifier
-  ) {
+  const cleanType =
+    String(
+      notificationType || 'live'
+    )
+      .trim()
+      .toLowerCase();
+
+  if (!cleanName) {
     throw new Error(
-      'Channel name and identifier are required.'
+      'A social feed name is required.'
     );
   }
 
@@ -208,30 +301,90 @@ export async function addSocialFeedChannel(
     );
   }
 
-  /*
-   * Prevent duplicate creators.
-   */
-
-  const duplicate =
-    channels.find(
-      channel =>
-        channel.platform ===
-          cleanPlatform &&
-        channel.identifier
-          .toLowerCase() ===
-          cleanIdentifier.toLowerCase()
-    );
-
-  if (duplicate) {
+  if (
+    !cleanLink &&
+    !cleanIdentifier
+  ) {
     throw new Error(
-      `That ${cleanPlatform} channel is already configured as "${duplicate.name}".`
+      'A platform link is required.'
+    );
+  }
+
+  if (
+    !SUPPORTED_NOTIFICATION_TYPES.includes(
+      cleanType
+    )
+  ) {
+    throw new Error(
+      'Notification type must be Live, Posts, or Both.'
+    );
+  }
+
+  if (
+    (
+      cleanType === 'live' ||
+      cleanType === 'both'
+    ) &&
+    !liveChannelId
+  ) {
+    throw new Error(
+      'A live notification channel is required.'
+    );
+  }
+
+  if (
+    (
+      cleanType === 'posts' ||
+      cleanType === 'both'
+    ) &&
+    !postChannelId
+  ) {
+    throw new Error(
+      'A post notification channel is required.'
     );
   }
 
   /*
-   * Each configured channel gets
-   * its own internal ID.
+   * Prevent duplicate platform links.
    */
+  const duplicate =
+    channels.find(channel => {
+      if (
+        channel.platform !==
+        cleanPlatform
+      ) {
+        return false;
+      }
+
+      const existingLink =
+        String(
+          channel.link ||
+          channel.identifier ||
+          ''
+        )
+          .trim()
+          .toLowerCase();
+
+      const newLink =
+        String(
+          cleanLink ||
+          cleanIdentifier ||
+          ''
+        )
+          .trim()
+          .toLowerCase();
+
+      return (
+        existingLink ===
+        newLink
+      );
+    });
+
+  if (duplicate) {
+    throw new Error(
+      `That ${cleanPlatform} account is already configured as "${duplicate.name}".`
+    );
+  }
 
   const id =
     `${cleanPlatform}_${Date.now()}_${Math.random()
@@ -247,8 +400,35 @@ export async function addSocialFeedChannel(
     platform:
       cleanPlatform,
 
+    link:
+      cleanLink,
+
     identifier:
       cleanIdentifier,
+
+    notificationType:
+      cleanType,
+
+    liveChannelId:
+      liveChannelId
+        ? String(
+            liveChannelId
+          )
+        : null,
+
+    postChannelId:
+      postChannelId
+        ? String(
+            postChannelId
+          )
+        : null,
+
+    discordUserId:
+      discordUserId
+        ? String(
+            discordUserId
+          )
+        : null,
 
     pingRoleId:
       pingRoleId
@@ -257,14 +437,16 @@ export async function addSocialFeedChannel(
           )
         : null,
 
-    /*
-     * Runtime live state.
-     */
-
     isLive:
       false,
 
     lastChecked:
+      0,
+
+    lastPostId:
+      null,
+
+    lastPostAt:
       0,
   };
 
@@ -283,7 +465,7 @@ export async function addSocialFeedChannel(
 
 /*
 |--------------------------------------------------------------------------
-| Remove a channel
+| Remove channel
 |--------------------------------------------------------------------------
 */
 
@@ -328,7 +510,7 @@ export async function removeSocialFeedChannel(
 
 /*
 |--------------------------------------------------------------------------
-| Update a configured channel
+| Update channel
 |--------------------------------------------------------------------------
 */
 
@@ -355,31 +537,23 @@ export async function updateSocialFeedChannel(
     return null;
   }
 
-  /*
-   * Update name
-   */
-
   if (
     updates.name !== undefined
   ) {
-    const newName =
+    const name =
       String(
         updates.name
       ).trim();
 
-    if (!newName) {
+    if (!name) {
       throw new Error(
-        'Channel name cannot be empty.'
+        'Feed name cannot be empty.'
       );
     }
 
     channel.name =
-      newName;
+      name;
   }
-
-  /*
-   * Update platform
-   */
 
   if (
     updates.platform !== undefined
@@ -387,7 +561,9 @@ export async function updateSocialFeedChannel(
     const platform =
       String(
         updates.platform
-      ).toLowerCase();
+      )
+        .trim()
+        .toLowerCase();
 
     if (
       !SUPPORTED_PLATFORMS.includes(
@@ -403,36 +579,97 @@ export async function updateSocialFeedChannel(
       platform;
   }
 
-  /*
-   * Update creator identifier
-   */
+  if (
+    updates.link !== undefined
+  ) {
+    const link =
+      String(
+        updates.link
+      ).trim();
+
+    if (!link) {
+      throw new Error(
+        'Platform link cannot be empty.'
+      );
+    }
+
+    channel.link =
+      link;
+  }
 
   if (
     updates.identifier !== undefined
   ) {
-    const identifier =
+    channel.identifier =
       String(
         updates.identifier
       ).trim();
+  }
 
-    if (!identifier) {
+  if (
+    updates.notificationType !==
+    undefined
+  ) {
+    const type =
+      String(
+        updates.notificationType
+      )
+        .trim()
+        .toLowerCase();
+
+    if (
+      !SUPPORTED_NOTIFICATION_TYPES.includes(
+        type
+      )
+    ) {
       throw new Error(
-        'Channel identifier cannot be empty.'
+        'Notification type must be Live, Posts, or Both.'
       );
     }
 
-    channel.identifier =
-      identifier;
+    channel.notificationType =
+      type;
   }
 
-  /*
-   * Update notification ping role.
-   *
-   * null / empty = no role ping.
-   */
+  if (
+    updates.liveChannelId !==
+    undefined
+  ) {
+    channel.liveChannelId =
+      updates.liveChannelId
+        ? String(
+            updates.liveChannelId
+          )
+        : null;
+  }
 
   if (
-    updates.pingRoleId !== undefined
+    updates.postChannelId !==
+    undefined
+  ) {
+    channel.postChannelId =
+      updates.postChannelId
+        ? String(
+            updates.postChannelId
+          )
+        : null;
+  }
+
+  if (
+    updates.discordUserId !==
+    undefined
+  ) {
+    channel.discordUserId =
+      updates.discordUserId
+        ? String(
+            updates.discordUserId
+          )
+        : null;
+  }
+
+  if (
+    updates.pingRoleId !==
+    undefined
   ) {
     channel.pingRoleId =
       updates.pingRoleId
@@ -443,9 +680,16 @@ export async function updateSocialFeedChannel(
   }
 
   /*
-   * If platform or identifier changed,
-   * make sure we didn't create a duplicate.
+   * Check duplicates.
    */
+  const channelsLink =
+    String(
+      channel.link ||
+      channel.identifier ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
 
   const duplicate =
     channels.find(
@@ -453,14 +697,19 @@ export async function updateSocialFeedChannel(
         item.id !== channel.id &&
         item.platform ===
           channel.platform &&
-        item.identifier
+        String(
+          item.link ||
+          item.identifier ||
+          ''
+        )
+          .trim()
           .toLowerCase() ===
-          channel.identifier.toLowerCase()
+          channelsLink
     );
 
   if (duplicate) {
     throw new Error(
-      `That ${channel.platform} channel is already configured as "${duplicate.name}".`
+      `That ${channel.platform} account is already configured as "${duplicate.name}".`
     );
   }
 
@@ -521,7 +770,56 @@ export async function updateSocialFeedLiveState(
 
 /*
 |--------------------------------------------------------------------------
-| Find one configured channel
+| Update post state
+|--------------------------------------------------------------------------
+*/
+
+export async function updateSocialFeedPostState(
+  client,
+  guildId,
+  channelId,
+  {
+    lastPostId = null,
+    lastPostAt = 0,
+  } = {}
+) {
+  const channels =
+    await getSocialFeedChannels(
+      client,
+      guildId
+    );
+
+  const channel =
+    channels.find(
+      item =>
+        item.id ===
+        String(channelId)
+    );
+
+  if (!channel) {
+    return null;
+  }
+
+  channel.lastPostId =
+    lastPostId
+      ? String(lastPostId)
+      : null;
+
+  channel.lastPostAt =
+    Number(lastPostAt) || 0;
+
+  await saveSocialFeedChannels(
+    client,
+    guildId,
+    channels
+  );
+
+  return channel;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Find channel
 |--------------------------------------------------------------------------
 */
 
@@ -548,18 +846,24 @@ export async function findSocialFeedChannel(
 
 /*
 |--------------------------------------------------------------------------
-| Get supported platforms
-|--------------------------------------------------------------------------
-|
-| Useful for commands such as:
-|
-| /add channel
-|
+| Supported platforms
 |--------------------------------------------------------------------------
 */
 
 export function getSupportedSocialPlatforms() {
   return [
     ...SUPPORTED_PLATFORMS,
+  ];
+}
+
+/*
+|--------------------------------------------------------------------------
+| Supported notification types
+|--------------------------------------------------------------------------
+*/
+
+export function getSupportedSocialNotificationTypes() {
+  return [
+    ...SUPPORTED_NOTIFICATION_TYPES,
   ];
 }
