@@ -4,6 +4,8 @@ import {
   ActionRowBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
+  ChannelSelectMenuBuilder,
+  ChannelType,
   MessageFlags,
   EmbedBuilder,
 } from 'discord.js';
@@ -23,7 +25,8 @@ import {
 
 function platformEmoji(platform) {
   switch (
-    String(platform || '').toLowerCase()
+    String(platform || '')
+      .toLowerCase()
   ) {
     case 'twitch':
       return '🟣';
@@ -35,13 +38,14 @@ function platformEmoji(platform) {
       return '⚫';
 
     default:
-      return '📡';
+      return '🌐';
   }
 }
 
 function platformName(platform) {
   switch (
-    String(platform || '').toLowerCase()
+    String(platform || '')
+      .toLowerCase()
   ) {
     case 'twitch':
       return 'Twitch';
@@ -57,15 +61,93 @@ function platformName(platform) {
   }
 }
 
+function notificationTypeName(type) {
+  switch (
+    String(type || '')
+      .toLowerCase()
+  ) {
+    case 'live':
+      return '📡 Live';
+
+    case 'posts':
+      return '🎥 Posts';
+
+    case 'both':
+      return '📡🎥 Both';
+
+    default:
+      return 'Unknown';
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Validate platform link
+|--------------------------------------------------------------------------
+*/
+
+function validatePlatformLink(
+  platform,
+  link
+) {
+  let url;
+
+  try {
+    url =
+      new URL(link);
+  } catch {
+    return false;
+  }
+
+  const host =
+    url.hostname
+      .toLowerCase()
+      .replace(/^www\./, '');
+
+  if (
+    platform === 'twitch'
+  ) {
+    return (
+      host === 'twitch.tv' ||
+      host === 'm.twitch.tv'
+    );
+  }
+
+  if (
+    platform === 'youtube'
+  ) {
+    return (
+      host === 'youtube.com' ||
+      host === 'youtu.be'
+    );
+  }
+
+  if (
+    platform === 'tiktok'
+  ) {
+    return (
+      host === 'tiktok.com' ||
+      host === 'm.tiktok.com'
+    );
+  }
+
+  return false;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Build view embed
+|--------------------------------------------------------------------------
+*/
+
 function buildChannelListEmbed(
-  guild,
   channels
 ) {
   const embed =
     new EmbedBuilder()
       .setColor(0xF8D568)
       .setTitle(
-        '📡 Social Media Live Channels'
+        '📡 Social Media Feeds'
       )
       .setFooter({
         text:
@@ -75,7 +157,7 @@ function buildChannelListEmbed(
 
   if (!channels.length) {
     embed.setDescription(
-      'No social media channels have been configured yet.'
+      'No social media feeds have been configured yet.'
     );
 
     return embed;
@@ -91,26 +173,39 @@ function buildChannelListEmbed(
     const channel =
       channels[i];
 
-    const ping =
-      channel.pingRoleId
-        ? `<@&${channel.pingRoleId}>`
-        : 'No ping role';
-
     const creator =
       channel.discordUserId
         ? `<@${channel.discordUserId}>`
         : '⚠️ Not linked';
+
+    const ping =
+      channel.pingRoleId
+        ? `<@&${channel.pingRoleId}>`
+        : 'None';
 
     const liveStatus =
       channel.isLive
         ? '🟢 **LIVE**'
         : '⚫ Offline';
 
+    const destinationLive =
+      channel.liveChannelId
+        ? `<#${channel.liveChannelId}>`
+        : 'None';
+
+    const destinationPosts =
+      channel.postChannelId
+        ? `<#${channel.postChannelId}>`
+        : 'None';
+
     lines.push(
       `**${i + 1}. ${channel.name}**\n` +
-      `${platformEmoji(channel.platform)} ${platformName(channel.platform)} • \`${channel.identifier}\`\n` +
-      `👤 Creator: ${creator}\n` +
-      `${liveStatus} • 🔔 ${ping}`
+      `${platformEmoji(channel.platform)} **${platformName(channel.platform)}** • ${notificationTypeName(channel.notificationType)}\n` +
+      `🔗 ${channel.link || channel.identifier}\n` +
+      `👤 Discord user: ${creator}\n` +
+      `${liveStatus} • 🔔 ${ping}\n` +
+      `📡 Live channel: ${destinationLive}\n` +
+      `🎥 Post channel: ${destinationPosts}`
     );
   }
 
@@ -132,48 +227,42 @@ export default {
     new SlashCommandBuilder()
       .setName('social')
       .setDescription(
-        'Manage social media live notifications.'
+        'Manage customizable social media feeds.'
       )
       .setDefaultMemberPermissions(
         PermissionFlagsBits.ManageGuild
       )
 
       /*
-       * /social add
-       */
+      |--------------------------------------------------------------------------
+      | /social add
+      |--------------------------------------------------------------------------
+      */
 
       .addSubcommand(
         sub =>
           sub
             .setName('add')
             .setDescription(
-              'Add a Twitch, YouTube, or TikTok channel.'
+              'Add a customizable social media feed.'
             )
-
-            /*
-             * Friendly name
-             */
 
             .addStringOption(
               option =>
                 option
                   .setName('name')
                   .setDescription(
-                    'A name to easily identify this creator.'
+                    'Custom name for this feed.'
                   )
                   .setRequired(true)
             )
-
-            /*
-             * Platform
-             */
 
             .addStringOption(
               option =>
                 option
                   .setName('platform')
                   .setDescription(
-                    'The platform.'
+                    'Social media platform.'
                   )
                   .setRequired(true)
                   .addChoices(
@@ -192,75 +281,116 @@ export default {
                   )
             )
 
-            /*
-             * Social media username / channel
-             */
+            .addStringOption(
+              option =>
+                option
+                  .setName('platform_link')
+                  .setDescription(
+                    'Full Twitch, YouTube, or TikTok creator link.'
+                  )
+                  .setRequired(true)
+            )
 
             .addStringOption(
               option =>
                 option
-                  .setName('channel')
+                  .setName('notifications')
                   .setDescription(
-                    'Twitch username, YouTube channel ID/handle, or TikTok username.'
+                    'What should this feed notify for?'
                   )
                   .setRequired(true)
+                  .addChoices(
+                    {
+                      name: '📡 Live',
+                      value: 'live',
+                    },
+                    {
+                      name: '🎥 Posts',
+                      value: 'posts',
+                    },
+                    {
+                      name: '📡🎥 Both',
+                      value: 'both',
+                    }
+                  )
             )
 
-            /*
-             * Discord member who owns the social account.
-             *
-             * This is what the live role will be
-             * added to and removed from.
-             */
+            .addChannelOption(
+              option =>
+                option
+                  .setName('live_channel')
+                  .setDescription(
+                    'Discord channel for live notifications.'
+                  )
+                  .addChannelTypes(
+                    ChannelType.GuildText,
+                    ChannelType.GuildAnnouncement
+                  )
+                  .setRequired(false)
+            )
+
+            .addChannelOption(
+              option =>
+                option
+                  .setName('post_channel')
+                  .setDescription(
+                    'Discord channel for new post/video notifications.'
+                  )
+                  .addChannelTypes(
+                    ChannelType.GuildText,
+                    ChannelType.GuildAnnouncement
+                  )
+                  .setRequired(false)
+            )
 
             .addUserOption(
               option =>
                 option
-                  .setName('creator')
+                  .setName('discord_user')
                   .setDescription(
-                    'The Discord member who should receive the live role.'
+                    'Discord user who owns this social account.'
                   )
                   .setRequired(true)
             )
-
-            /*
-             * Optional notification role.
-             */
 
             .addRoleOption(
               option =>
                 option
                   .setName('ping_role')
                   .setDescription(
-                    'Role to mention when this creator goes live. Optional.'
+                    'Optional role to ping for notifications.'
                   )
                   .setRequired(false)
             )
       )
 
       /*
-       * /social remove
-       */
+      |--------------------------------------------------------------------------
+      | /social remove
+      |--------------------------------------------------------------------------
+      */
 
       .addSubcommand(
         sub =>
           sub
             .setName('remove')
             .setDescription(
-              'Remove a configured social media channel.'
+              'Remove a configured social feed.'
             )
       )
 
       /*
-       * /social view
-       */
+      |--------------------------------------------------------------------------
+      | /social view
+      |--------------------------------------------------------------------------
+      */
 
       .addSubcommand(
         sub =>
           sub
             .setName('view')
             .setDescription(
-              'View all configured social media channels.'
+              'View all configured social feeds.'
             )
       ),
 
@@ -310,15 +440,31 @@ export default {
           true
         );
 
-      const identifier =
+      const platformLink =
         interaction.options.getString(
-          'channel',
+          'platform_link',
+          true
+        ).trim();
+
+      const notifications =
+        interaction.options.getString(
+          'notifications',
           true
         );
 
-      const creator =
+      const liveChannel =
+        interaction.options.getChannel(
+          'live_channel'
+        );
+
+      const postChannel =
+        interaction.options.getChannel(
+          'post_channel'
+        );
+
+      const discordUser =
         interaction.options.getUser(
-          'creator',
+          'discord_user',
           true
         );
 
@@ -328,7 +474,59 @@ export default {
         );
 
       /*
-       * Don't allow @everyone.
+       * Validate URL.
+       */
+
+      if (
+        !validatePlatformLink(
+          platform,
+          platformLink
+        )
+      ) {
+        return interaction.reply({
+          content:
+            `❌ That does not look like a valid **${platformName(platform)}** link.`,
+          flags:
+            MessageFlags.Ephemeral,
+        });
+      }
+
+      /*
+       * Require correct destination channels.
+       */
+
+      if (
+        (
+          notifications === 'live' ||
+          notifications === 'both'
+        ) &&
+        !liveChannel
+      ) {
+        return interaction.reply({
+          content:
+            '❌ You selected live notifications, so you must select a **Live Channel**.',
+          flags:
+            MessageFlags.Ephemeral,
+        });
+      }
+
+      if (
+        (
+          notifications === 'posts' ||
+          notifications === 'both'
+        ) &&
+        !postChannel
+      ) {
+        return interaction.reply({
+          content:
+            '❌ You selected post notifications, so you must select a **Post Channel**.',
+          flags:
+            MessageFlags.Ephemeral,
+        });
+      }
+
+      /*
+       * Don't allow everyone.
        */
 
       if (
@@ -338,7 +536,7 @@ export default {
       ) {
         return interaction.reply({
           content:
-            '❌ You cannot use `@everyone` as the live notification ping role.',
+            '❌ You cannot use `@everyone` as the notification ping role.',
           flags:
             MessageFlags.Ephemeral,
         });
@@ -361,13 +559,14 @@ export default {
       }
 
       /*
-       * Make sure the selected creator is
-       * actually in this server.
+       * Make sure Discord user is in server.
        */
 
       const creatorMember =
         await interaction.guild.members
-          .fetch(creator.id)
+          .fetch(
+            discordUser.id
+          )
           .catch(() => null);
 
       if (!creatorMember) {
@@ -385,23 +584,31 @@ export default {
       });
 
       try {
-        const channel =
+        const feed =
           await addSocialFeedChannel(
             interaction.client,
             interaction.guild.id,
             {
               name,
-              platform,
-              identifier,
 
-              /*
-               * IMPORTANT:
-               * This is the Discord account that
-               * receives the live role.
-               */
+              platform,
+
+              link:
+                platformLink,
+
+              notificationType:
+                notifications,
+
+              liveChannelId:
+                liveChannel?.id ||
+                null,
+
+              postChannelId:
+                postChannel?.id ||
+                null,
 
               discordUserId:
-                creator.id,
+                discordUser.id,
 
               pingRoleId:
                 pingRole?.id ||
@@ -411,20 +618,41 @@ export default {
 
         return interaction.editReply({
           content:
-            `✅ Added **${channel.name}**.\n\n` +
-            `${platformEmoji(channel.platform)} Platform: **${platformName(channel.platform)}**\n` +
-            `📺 Channel: \`${channel.identifier}\`\n` +
-            `👤 Discord creator: <@${channel.discordUserId}>\n` +
-            `🔔 Ping role: ${
-              channel.pingRoleId
-                ? `<@&${channel.pingRoleId}>`
+            `✅ **Social feed added!**\n\n` +
+
+            `🏷️ **Name:** ${feed.name}\n` +
+
+            `${platformEmoji(feed.platform)} **Platform:** ${platformName(feed.platform)}\n` +
+
+            `🔗 **Link:** ${feed.link}\n` +
+
+            `🔔 **Notifications:** ${notificationTypeName(feed.notificationType)}\n` +
+
+            `📡 **Live channel:** ${
+              feed.liveChannelId
+                ? `<#${feed.liveChannelId}>`
+                : 'Disabled'
+            }\n` +
+
+            `🎥 **Post channel:** ${
+              feed.postChannelId
+                ? `<#${feed.postChannelId}>`
+                : 'Disabled'
+            }\n` +
+
+            `👤 **Discord user:** <@${feed.discordUserId}>\n` +
+
+            `🔔 **Ping role:** ${
+              feed.pingRoleId
+                ? `<@&${feed.pingRoleId}>`
                 : 'None'
             }\n\n` +
-            `🎭 Live role: <@&${LIVE_ROLE_ID}>`,
+
+            `🎭 **Live role:** <@&${LIVE_ROLE_ID}>`,
         });
       } catch (error) {
         console.error(
-          '[Social Feed] Add channel error:',
+          '[Social Feed] Add error:',
           error
         );
 
@@ -432,112 +660,94 @@ export default {
           content:
             `❌ ${
               error.message ||
-              'Failed to add channel.'
+              'Failed to add social feed.'
             }`,
         });
       }
     }
-/*
-|--------------------------------------------------------------------------
-| REMOVE
-|--------------------------------------------------------------------------
-*/
 
-if (
-  subcommand === 'remove'
-) {
-  const channels =
-    await getSocialFeedChannels(
-      interaction.client,
-      interaction.guild.id
-    );
+    /*
+    |--------------------------------------------------------------------------
+    | REMOVE
+    |--------------------------------------------------------------------------
+    */
 
-  if (!channels.length) {
-    return interaction.reply({
-      content:
-        '❌ There are no configured social media channels.',
-      flags:
-        MessageFlags.Ephemeral,
-    });
-  }
+    if (
+      subcommand === 'remove'
+    ) {
+      const channels =
+        await getSocialFeedChannels(
+          interaction.client,
+          interaction.guild.id
+        );
 
-  const options =
-    channels
-      .slice(0, 25)
-      .map(
-        channel =>
-          new StringSelectMenuOptionBuilder()
-            /*
-             * IMPORTANT:
-             *
-             * Use the custom name/nickname entered when
-             * the channel was added.
-             *
-             * Example:
-             * /social add
-             * name: Ninja
-             * platform: Twitch
-             * channel: ninja
-             *
-             * The remove menu will show:
-             * "Ninja"
-             *
-             * NOT the Discord user's username.
-             */
-            .setLabel(
-              channel.name.slice(
-                0,
-                100
+      if (!channels.length) {
+        return interaction.reply({
+          content:
+            '❌ There are no social feeds configured.',
+          flags:
+            MessageFlags.Ephemeral,
+        });
+      }
+
+      /*
+       * IMPORTANT:
+       *
+       * The menu displays the CUSTOM
+       * feed name, not the Discord username.
+       */
+
+      const options =
+        channels
+          .slice(0, 25)
+          .map(channel =>
+            new StringSelectMenuOptionBuilder()
+              .setLabel(
+                channel.name
+                  .slice(0, 100)
               )
-            )
-
-            /*
-             * Show the actual platform account underneath.
-             */
-            .setDescription(
-              `${platformName(channel.platform)} • ${channel.identifier}`.slice(
-                0,
-                100
+              .setDescription(
+                `${platformName(channel.platform)} • ${
+                  notificationTypeName(
+                    channel.notificationType
+                  )
+                }`
+                  .slice(0, 100)
               )
-            )
-
-            .setValue(
-              channel.id
-            )
-
-            .setEmoji(
-              platformEmoji(
-                channel.platform
+              .setValue(
+                channel.id
               )
-            )
-      );
+          );
 
-  const menu =
-    new StringSelectMenuBuilder()
-      .setCustomId(
-        `social_remove_${interaction.user.id}`
-      )
-      .setPlaceholder(
-        'Select a channel to remove...'
-      )
-      .addOptions(
-        options
-      );
+      const menu =
+        new StringSelectMenuBuilder()
+          .setCustomId(
+            `social_remove_${interaction.user.id}`
+          )
+          .setPlaceholder(
+            'Select a social feed to remove...'
+          )
+          .addOptions(
+            options
+          );
 
-  return interaction.reply({
-    content:
-      '**🗑️ Remove Social Channel**\n' +
-      'Select the configured channel using its custom name:',
-    components: [
-      new ActionRowBuilder()
-        .addComponents(
-          menu
-        ),
-    ],
-    flags:
-      MessageFlags.Ephemeral,
-  });
-}
+      const row =
+        new ActionRowBuilder()
+          .addComponents(
+            menu
+          );
+
+      return interaction.reply({
+        content:
+          '🗑️ **Select the social feed you want to remove.**',
+        components: [
+          row,
+        ],
+        flags:
+          MessageFlags.Ephemeral,
+      });
+    }
+
     /*
     |--------------------------------------------------------------------------
     | VIEW
@@ -556,143 +766,12 @@ if (
       return interaction.reply({
         embeds: [
           buildChannelListEmbed(
-            interaction.guild,
             channels
           ),
         ],
         flags:
           MessageFlags.Ephemeral,
       });
-    }
-  },
-
-  /*
-  |--------------------------------------------------------------------------
-  | Component handler
-  |--------------------------------------------------------------------------
-  */
-
-  async handleComponent(
-    interaction
-  ) {
-    if (
-      !interaction.isStringSelectMenu()
-    ) {
-      return false;
-    }
-
-    if (
-      !interaction.customId.startsWith(
-        'social_remove_'
-      )
-    ) {
-      return false;
-    }
-
-    const ownerId =
-      interaction.customId.replace(
-        'social_remove_',
-        ''
-      );
-
-    if (
-      interaction.user.id !==
-      ownerId
-    ) {
-      await interaction.reply({
-        content:
-          '❌ Only the administrator who opened this menu can use it.',
-        flags:
-          MessageFlags.Ephemeral,
-      });
-
-      return true;
-    }
-
-    const channelId =
-      interaction.values[0];
-
-    await interaction.deferUpdate();
-
-    try {
-      const removed =
-        await removeSocialFeedChannel(
-          interaction.client,
-          interaction.guild.id,
-          channelId
-        );
-
-      if (!removed) {
-        await interaction.editReply({
-          content:
-            '❌ That channel no longer exists in the configuration.',
-          embeds: [],
-          components: [],
-        });
-
-        return true;
-      }
-
-      /*
-       * If the creator was live, immediately remove
-       * the fixed live role.
-       */
-
-      if (
-        removed.discordUserId
-      ) {
-        const member =
-          await interaction.guild.members
-            .fetch(
-              removed.discordUserId
-            )
-            .catch(
-              () => null
-            );
-
-        if (
-          member &&
-          member.roles.cache.has(
-            LIVE_ROLE_ID
-          )
-        ) {
-          await member.roles
-            .remove(
-              LIVE_ROLE_ID,
-              `Removed social live channel: ${removed.name}`
-            )
-            .catch(
-              error =>
-                console.error(
-                  '[Social Feed] Failed removing live role after channel removal:',
-                  error
-                )
-            );
-        }
-      }
-
-      await interaction.editReply({
-        content:
-          `✅ Removed **${removed.name}** (${platformName(removed.platform)}).`,
-        embeds: [],
-        components: [],
-      });
-
-      return true;
-    } catch (error) {
-      console.error(
-        '[Social Feed] Remove channel error:',
-        error
-      );
-
-      await interaction.editReply({
-        content:
-          '❌ Failed to remove the channel.',
-        embeds: [],
-        components: [],
-      });
-
-      return true;
     }
   },
 };
