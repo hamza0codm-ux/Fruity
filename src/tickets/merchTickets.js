@@ -332,43 +332,40 @@ export async function reconcileMerchTicketPanel(
             });
 
 
+        /*
+         * DO NOT EDIT AN EXISTING PANEL.
+         *
+         * If the panel already exists, leave it
+         * completely untouched so Discord does not
+         * show "Edited" every time the bot restarts.
+         */
+        if (existing) {
+            logger.info(
+                '[Merch Tickets] Panel already exists. No changes made.'
+            );
+
+            return;
+        }
+
+
+        /*
+         * CREATE PANEL IF IT DOES NOT EXIST.
+         */
         const components = [
             buildMerchTicketPanel(),
         ];
 
 
-        /*
-         * UPDATE EXISTING PANEL
-         */
-        if (existing) {
-            await existing.edit({
-                components,
-                flags:
-                    MessageFlags.IsComponentsV2,
-            });
+        await channel.send({
+            components,
+            flags:
+                MessageFlags.IsComponentsV2,
+        });
 
 
-            logger.info(
-                '[Merch Tickets] Panel updated.'
-            );
-        }
-
-
-        /*
-         * CREATE PANEL IF IT DOES NOT EXIST
-         */
-        else {
-            await channel.send({
-                components,
-                flags:
-                    MessageFlags.IsComponentsV2,
-            });
-
-
-            logger.info(
-                '[Merch Tickets] Panel created.'
-            );
-        }
+        logger.info(
+            '[Merch Tickets] Panel created.'
+        );
 
 
     } catch (error) {
