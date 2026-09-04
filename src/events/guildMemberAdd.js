@@ -10,30 +10,9 @@ import {
 } from '../config/bot.js';
 
 import {
-    getGuildConfig,
-} from '../services/config/guildConfig.js';
-
-import {
-    getWelcomeConfig,
-} from '../utils/database.js';
-
-import {
-    formatWelcomeMessage,
-} from '../utils/welcome.js';
-
-import {
     logEvent,
     EVENT_TYPES,
 } from '../services/loggingService.js';
-
-import {
-    getServerCounters,
-    updateCounter,
-} from '../services/serverstatsService.js';
-
-import {
-    setBirthday as dbSetBirthday,
-} from '../utils/database.js';
 
 import {
     logger,
@@ -42,10 +21,22 @@ import {
 
 /*
 |--------------------------------------------------------------------------
+| WELCOME CONFIGURATION
+|--------------------------------------------------------------------------
+|
+| Everything for the welcome system is configured here.
+|
+*/
+
+const WELCOME_CHANNEL_ID = 'YOUR_WELCOME_CHANNEL_ID';
+
+
+/*
+|--------------------------------------------------------------------------
 | AUTO ROLE
 |--------------------------------------------------------------------------
 |
-| New members will automatically receive this role.
+| This role is automatically given to every new member.
 |
 */
 
@@ -54,20 +45,7 @@ const AUTO_ROLE_ID = '1541554587658625104';
 
 /*
 |--------------------------------------------------------------------------
-| WELCOME CHANNEL
-|--------------------------------------------------------------------------
-|
-| Leave this as null to use the channel configured in the database.
-| If you want to hard-code a channel, put its ID here.
-|
-*/
-
-const WELCOME_CHANNEL_ID = null;
-
-
-/*
-|--------------------------------------------------------------------------
-| WELCOME MESSAGE
+| WELCOME LINKS
 |--------------------------------------------------------------------------
 */
 
@@ -121,94 +99,25 @@ export default {
 
         /*
         |--------------------------------------------------------------------------
-        | GUILD CONFIG
+        | WELCOME MESSAGE
         |--------------------------------------------------------------------------
         */
-
-        let guildConfig;
 
         try {
-
-            guildConfig = await getGuildConfig(guild.id);
-
-        } catch (error) {
-
-            logger.error(
-                `Failed to load guild config for ${guild.id}:`,
-                error
-            );
-
-            guildConfig = {};
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | WELCOME CONFIG
-        |--------------------------------------------------------------------------
-        */
-
-        let welcomeConfig;
-
-        try {
-
-            welcomeConfig =
-                await getWelcomeConfig(guild.id);
-
-        } catch (error) {
-
-            logger.error(
-                `Failed to load welcome config for ${guild.id}:`,
-                error
-            );
-
-            welcomeConfig = {};
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | WELCOME FEATURE CHECK
-        |--------------------------------------------------------------------------
-        */
-
-        const welcomeEnabled =
-            botConfig.features?.welcome !== false &&
-            guildConfig?.features?.welcome !== false &&
-            welcomeConfig?.enabled !== false;
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | WELCOME CHANNEL
-        |--------------------------------------------------------------------------
-        */
-
-        const welcomeChannelId =
-            WELCOME_CHANNEL_ID ||
-            welcomeConfig?.channelId ||
-            botConfig.welcome?.defaultWelcomeChannel;
-
-
-        if (welcomeEnabled && welcomeChannelId) {
 
             const welcomeChannel =
-                guild.channels.cache.get(welcomeChannelId);
+                guild.channels.cache.get(
+                    WELCOME_CHANNEL_ID
+                );
 
 
             if (!welcomeChannel) {
 
                 logger.warn(
-                    `Welcome channel ${welcomeChannelId} was not found in guild ${guild.id}.`
+                    `Welcome channel ${WELCOME_CHANNEL_ID} was not found in guild ${guild.id}.`
                 );
 
             } else {
-
-                /*
-                |--------------------------------------------------------------------------
-                | PERMISSION CHECK
-                |--------------------------------------------------------------------------
-                */
 
                 const permissions =
                     welcomeChannel.permissionsFor(
@@ -237,7 +146,7 @@ export default {
 
                     /*
                     |--------------------------------------------------------------------------
-                    | WELCOME EMBED
+                    | WELCOME DESCRIPTION
                     |--------------------------------------------------------------------------
                     */
 
@@ -252,6 +161,12 @@ export default {
                         `Hope you enjoy your stay here ❤️`,
                     ].join('\n');
 
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | WELCOME EMBED
+                    |--------------------------------------------------------------------------
+                    */
 
                     const embed =
                         new EmbedBuilder()
@@ -291,12 +206,15 @@ export default {
 
                     /*
                     |--------------------------------------------------------------------------
-                    | OPTIONAL WELCOME IMAGE
+                    | OPTIONAL IMAGE
                     |--------------------------------------------------------------------------
+                    |
+                    | If you have a welcome image configured in bot.js,
+                    | it will still be used.
+                    |
                     */
 
                     const welcomeImage =
-                        welcomeConfig?.imageUrl ||
                         botConfig.welcome?.welcomeImage;
 
 
@@ -313,44 +231,44 @@ export default {
 
                     /*
                     |--------------------------------------------------------------------------
-                    | SEND WELCOME
+                    | SEND MESSAGE
                     |--------------------------------------------------------------------------
                     |
-                    | The user is pinged in the normal message content.
-                    | The actual welcome message is inside the embed.
+                    | The member gets a normal Discord ping.
+                    | The actual welcome content is the embed.
                     |
                     */
 
-                    try {
+                    await welcomeChannel.send({
 
-                        await welcomeChannel.send({
-                            content: user.toString(),
+                        content:
+                            user.toString(),
 
-                            allowedMentions: {
-                                users: [
-                                    user.id,
-                                ],
-                            },
-
-                            embeds: [
-                                embed,
+                        allowedMentions: {
+                            users: [
+                                user.id,
                             ],
-                        });
+                        },
+
+                        embeds: [
+                            embed,
+                        ],
+
+                    });
 
 
-                        logger.info(
-                            `Sent welcome message for ${user.tag} in ${guild.name}.`
-                        );
-
-                    } catch (error) {
-
-                        logger.error(
-                            `Failed to send welcome message for ${user.tag}:`,
-                            error
-                        );
-                    }
+                    logger.info(
+                        `Sent welcome message for ${user.tag} in ${guild.name}.`
+                    );
                 }
             }
+
+        } catch (error) {
+
+            logger.error(
+                `Failed to send welcome message for ${user.tag}:`,
+                error
+            );
         }
 
 
@@ -358,13 +276,9 @@ export default {
         |--------------------------------------------------------------------------
         | AUTO ROLE
         |--------------------------------------------------------------------------
-        |
-        | This is now completely code-configured.
-        | No /autorole command is required.
-        |
         */
 
-        if (AUTO_ROLE_ID) {
+        try {
 
             const role =
                 guild.roles.cache.get(
@@ -385,19 +299,14 @@ export default {
                     role
                 );
             }
+
+        } catch (error) {
+
+            logger.error(
+                `Failed to process auto role for ${user.tag}:`,
+                error
+            );
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | VERIFICATION
-        |--------------------------------------------------------------------------
-        */
-
-        await handleVerification(
-            member,
-            guildConfig
-        );
 
 
         /*
@@ -420,80 +329,6 @@ export default {
 
             logger.error(
                 `Failed to log member join for ${user.tag}:`,
-                error
-            );
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | SERVER COUNTERS
-        |--------------------------------------------------------------------------
-        */
-
-        try {
-
-            const counters =
-                await getServerCounters(
-                    guild.id
-                );
-
-
-            if (counters) {
-
-                await updateCounter(
-                    guild.id,
-                    'members',
-                    guild.memberCount
-                );
-            }
-
-        } catch (error) {
-
-            logger.error(
-                `Failed to update server counters for ${guild.id}:`,
-                error
-            );
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | BIRTHDAY RESTORE
-        |--------------------------------------------------------------------------
-        */
-
-        try {
-
-            if (
-                guildConfig?.birthday?.enabled
-            ) {
-
-                const birthday =
-                    guildConfig.birthday;
-
-
-                if (
-                    birthday.restoreOnJoin &&
-                    birthday.savedBirthdays?.[user.id]
-                ) {
-
-                    const savedBirthday =
-                        birthday.savedBirthdays[user.id];
-
-
-                    await dbSetBirthday(
-                        guild.id,
-                        user.id,
-                        savedBirthday
-                    );
-                }
-            }
-
-        } catch (error) {
-
-            logger.error(
-                `Failed to restore birthday for ${user.tag}:`,
                 error
             );
         }
@@ -542,7 +377,7 @@ async function assignRoleSafely(
 
         /*
         |--------------------------------------------------------------------------
-        | BOT HIERARCHY CHECK
+        | BOT MEMBER
         |--------------------------------------------------------------------------
         */
 
@@ -553,19 +388,23 @@ async function assignRoleSafely(
         if (!botMember) {
 
             logger.warn(
-                `Could not resolve bot member in ${member.guild.id}.`
+                `Could not resolve bot member in guild ${member.guild.id}.`
             );
 
             return false;
         }
 
 
-        if (
-            !role.editable
-        ) {
+        /*
+        |--------------------------------------------------------------------------
+        | ROLE HIERARCHY
+        |--------------------------------------------------------------------------
+        */
+
+        if (!role.editable) {
 
             logger.warn(
-                `Cannot assign role ${role.name} (${role.id}) because the role is not editable by the bot.`
+                `Cannot assign role ${role.name} (${role.id}) because the role is higher than or equal to the bot's highest role.`
             );
 
             return false;
@@ -598,89 +437,6 @@ async function assignRoleSafely(
             error
         );
 
-
         return false;
-    }
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| VERIFICATION
-|--------------------------------------------------------------------------
-*/
-
-async function handleVerification(
-    member,
-    guildConfig
-) {
-
-    try {
-
-        const verification =
-            guildConfig?.verification;
-
-
-        if (
-            !verification ||
-            !verification.enabled
-        ) {
-            return;
-        }
-
-
-        const verificationRoleId =
-            verification.roleId;
-
-
-        if (!verificationRoleId) {
-            return;
-        }
-
-
-        const role =
-            member.guild.roles.cache.get(
-                verificationRoleId
-            );
-
-
-        if (!role) {
-
-            logger.warn(
-                `Verification role ${verificationRoleId} was not found in guild ${member.guild.id}.`
-            );
-
-            return;
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | DO NOT ASSIGN VERIFICATION ROLE IF BOT
-        |--------------------------------------------------------------------------
-        */
-
-        if (member.user.bot) {
-            return;
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | ASSIGN VERIFICATION ROLE
-        |--------------------------------------------------------------------------
-        */
-
-        await assignRoleSafely(
-            member,
-            role
-        );
-
-    } catch (error) {
-
-        logger.error(
-            `Verification handling failed for ${member.user.tag}:`,
-            error
-        );
     }
 }
