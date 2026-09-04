@@ -22,47 +22,14 @@ import { logger } from '../utils/logger.js';
 */
 
 export const SUGGESTION_CONFIG = {
-    /*
-     * ================================================================
-     * CHANGE THIS
-     * ================================================================
-     *
-     * This is the channel where the PUBLIC suggestion panel goes.
-     */
     panelChannelId: '1545071209429999736',
 
-    /*
-     * ================================================================
-     * ADMIN SUGGESTION CHANNEL
-     * ================================================================
-     *
-     * This channel should be private.
-     */
     adminChannelId: '1545354349574758450',
 
-    /*
-     * ================================================================
-     * PANEL IMAGE
-     * ================================================================
-     *
-     * Leave this blank until you have your image.
-     *
-     * Example:
-     *
-     * panelImageUrl:
-     *     'https://cdn.discordapp.com/attachments/.../suggestions.png'
-     */
     panelImageUrl: '',
 
-    /*
-     * Panel colour.
-     */
     color: 0xF8D568,
 
-    /*
-     * Maximum number of suggestions displayed
-     * when somebody presses My Status.
-     */
     maxStatusResults: 10,
 };
 
@@ -109,7 +76,9 @@ export async function getSuggestions(guildId) {
         return Array.isArray(suggestions)
             ? suggestions
             : [];
+
     } catch (error) {
+
         logger.error(
             `Failed to get suggestions for guild ${guildId}:`,
             error
@@ -125,13 +94,16 @@ export async function saveSuggestions(
     suggestions
 ) {
     try {
+
         await setInDb(
             getSuggestionKey(guildId),
             suggestions
         );
 
         return true;
+
     } catch (error) {
+
         logger.error(
             `Failed to save suggestions for guild ${guildId}:`,
             error
@@ -149,10 +121,12 @@ export async function getSuggestion(
     const suggestions =
         await getSuggestions(guildId);
 
-    return suggestions.find(
-        suggestion =>
-            suggestion.id === suggestionId
-    ) || null;
+    return (
+        suggestions.find(
+            suggestion =>
+                suggestion.id === suggestionId
+        ) || null
+    );
 }
 
 
@@ -168,15 +142,26 @@ export async function createSuggestion({
     username,
     suggestion,
 }) {
+
     const suggestions =
         await getSuggestions(guildId);
 
+    /*
+     * Internal ID.
+     *
+     * This is NOT displayed to users.
+     *
+     * It is required internally so the
+     * Approve/Deny buttons know which
+     * suggestion they belong to.
+     */
     const id =
         `${Date.now().toString(36)}-${Math.random()
             .toString(36)
             .slice(2, 8)}`;
 
     const record = {
+
         id,
 
         guildId,
@@ -224,6 +209,7 @@ export async function updateSuggestion(
     suggestionId,
     updates
 ) {
+
     const suggestions =
         await getSuggestions(guildId);
 
@@ -259,7 +245,9 @@ export async function updateSuggestion(
 */
 
 export function getStatusLabel(status) {
+
     switch (status) {
+
         case 'accepted':
             return '🟢 Accepted';
 
@@ -274,7 +262,9 @@ export function getStatusLabel(status) {
 
 
 export function getStatusEmoji(status) {
+
     switch (status) {
+
         case 'accepted':
             return '🟢';
 
@@ -289,7 +279,9 @@ export function getStatusEmoji(status) {
 
 
 export function formatStatus(status) {
+
     switch (status) {
+
         case 'accepted':
             return 'Accepted';
 
@@ -310,6 +302,7 @@ export function formatStatus(status) {
 */
 
 export function buildSuggestionPanel() {
+
     const embed =
         new EmbedBuilder()
             .setColor(
@@ -324,21 +317,21 @@ export function buildSuggestionPanel() {
             );
 
     /*
-     * IMAGE PLACEHOLDER
-     *
-     * Once you add an image URL above,
-     * it will automatically appear here.
+     * Optional panel image.
      */
+
     if (
         SUGGESTION_CONFIG.panelImageUrl &&
         /^https?:\/\//i.test(
             SUGGESTION_CONFIG.panelImageUrl
         )
     ) {
+
         embed.setImage(
             SUGGESTION_CONFIG.panelImageUrl
         );
     }
+
 
     const buttons =
         new ActionRowBuilder()
@@ -347,11 +340,14 @@ export function buildSuggestionPanel() {
                 /*
                  * SUBMIT
                  */
+
                 new ButtonBuilder()
                     .setCustomId(
                         'suggestion_submit'
                     )
-                    .setLabel('Submit')
+                    .setLabel(
+                        'Submit'
+                    )
                     .setEmoji(
                         SUGGESTION_EMOJIS.submit
                     )
@@ -362,11 +358,14 @@ export function buildSuggestionPanel() {
                 /*
                  * MY STATUS
                  */
+
                 new ButtonBuilder()
                     .setCustomId(
                         'suggestion_status'
                     )
-                    .setLabel('My Status')
+                    .setLabel(
+                        'My Status'
+                    )
                     .setEmoji(
                         SUGGESTION_EMOJIS.status
                     )
@@ -375,9 +374,15 @@ export function buildSuggestionPanel() {
                     )
             );
 
+
     return {
-        embeds: [embed],
-        components: [buttons],
+        embeds: [
+            embed
+        ],
+
+        components: [
+            buttons
+        ],
     };
 }
 
@@ -391,22 +396,28 @@ export function buildSuggestionPanel() {
 export function buildAdminSuggestionEmbed(
     suggestion
 ) {
+
     let color =
         SUGGESTION_CONFIG.color;
+
 
     if (
         suggestion.status ===
         'accepted'
     ) {
+
         color = 0x57F287;
     }
+
 
     if (
         suggestion.status ===
         'denied'
     ) {
+
         color = 0xED4245;
     }
+
 
     const embed =
         new EmbedBuilder()
@@ -423,19 +434,24 @@ export function buildAdminSuggestionEmbed(
             .addFields(
                 {
                     name: 'Submitted By',
+
                     value:
                         `<@${suggestion.userId}>`,
+
                     inline: true,
                 },
 
                 {
                     name: 'Status',
+
                     value:
                         getStatusLabel(
                             suggestion.status
                         ),
+
                     inline: true,
-                },
+                }
+            )
 
             .setTimestamp(
                 new Date(
@@ -448,27 +464,44 @@ export function buildAdminSuggestionEmbed(
                     'Fruity Suggestions',
             });
 
+
+    /*
+     * Reviewed By
+     */
+
     if (suggestion.reviewedBy) {
+
         embed.addFields({
             name: 'Reviewed By',
+
             value:
                 `<@${suggestion.reviewedBy}>`,
+
             inline: true,
         });
     }
 
+
+    /*
+     * Reviewed At
+     */
+
     if (suggestion.reviewedAt) {
+
         embed.addFields({
             name: 'Reviewed At',
+
             value:
                 `<t:${Math.floor(
                     new Date(
                         suggestion.reviewedAt
                     ).getTime() / 1000
                 )}:F>`,
+
             inline: true,
         });
     }
+
 
     return embed;
 }
@@ -483,34 +516,56 @@ export function buildAdminSuggestionEmbed(
 export function buildAdminSuggestionButtons(
     suggestion
 ) {
+
     const finished =
         suggestion.status === 'accepted' ||
         suggestion.status === 'denied';
 
+
     return new ActionRowBuilder()
         .addComponents(
+
+            /*
+             * APPROVE
+             */
 
             new ButtonBuilder()
                 .setCustomId(
                     `suggestion_approve:${suggestion.id}`
                 )
-                .setLabel('Approve')
-                .setEmoji('✅')
+                .setLabel(
+                    'Approve'
+                )
+                .setEmoji(
+                    '✅'
+                )
                 .setStyle(
                     ButtonStyle.Success
                 )
-                .setDisabled(finished),
+                .setDisabled(
+                    finished
+                ),
+
+            /*
+             * DENY
+             */
 
             new ButtonBuilder()
                 .setCustomId(
                     `suggestion_deny:${suggestion.id}`
                 )
-                .setLabel('Deny')
-                .setEmoji('❌')
+                .setLabel(
+                    'Deny'
+                )
+                .setEmoji(
+                    '❌'
+                )
                 .setStyle(
                     ButtonStyle.Danger
                 )
-                .setDisabled(finished)
+                .setDisabled(
+                    finished
+                )
         );
 }
 
@@ -524,14 +579,17 @@ export function buildAdminSuggestionButtons(
 export async function reconcileSuggestionPanel(
     client
 ) {
+
     const channelId =
         SUGGESTION_CONFIG.panelChannelId;
+
 
     if (
         !channelId ||
         channelId ===
             'PUT_SUGGESTION_PANEL_CHANNEL_ID_HERE'
     ) {
+
         logger.warn(
             'Suggestions: panelChannelId has not been configured.'
         );
@@ -539,16 +597,20 @@ export async function reconcileSuggestionPanel(
         return null;
     }
 
+
     try {
+
         const channel =
             await client.channels.fetch(
                 channelId
             );
 
+
         if (
             !channel ||
             !channel.isTextBased()
         ) {
+
             logger.warn(
                 `Suggestions: channel ${channelId} is invalid or not text based.`
             );
@@ -556,27 +618,32 @@ export async function reconcileSuggestionPanel(
             return null;
         }
 
+
         const payload =
             buildSuggestionPanel();
+
 
         const messages =
             await channel.messages.fetch({
                 limit: 50,
             });
 
+
         /*
-         * Find an existing suggestion panel
-         * sent by this bot.
+         * Find existing panel.
          */
+
         const existing =
             messages.find(
                 message => {
+
                     if (
                         message.author?.id !==
                         client.user?.id
                     ) {
                         return false;
                     }
+
 
                     return message.components?.some(
                         row =>
@@ -589,10 +656,13 @@ export async function reconcileSuggestionPanel(
                 }
             );
 
+
         /*
          * UPDATE EXISTING PANEL
          */
+
         if (existing) {
+
             await existing.edit(
                 payload
             );
@@ -604,21 +674,27 @@ export async function reconcileSuggestionPanel(
             return existing;
         }
 
+
         /*
          * CREATE NEW PANEL
          */
+
         const message =
             await channel.send(
                 payload
             );
 
+
         logger.info(
             `Suggestions panel created in #${channel.name}.`
         );
 
+
         return message;
 
+
     } catch (error) {
+
         logger.error(
             'Suggestions: failed to reconcile panel:',
             error
