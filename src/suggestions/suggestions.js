@@ -319,7 +319,7 @@ export function buildSuggestionPanel() {
                 'Have your ideas heard at Fruity'
             )
             .setDescription(
-                'Have an idea, improvement, or suggestion for FruityINC?\n\n' +
+                'Have an idea, improvement, or suggestion for Fruity?\n\n' +
                 'We want to hear what you think. Submit your idea below and our administration team will review it.'
             );
 
