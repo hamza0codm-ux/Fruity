@@ -33,8 +33,12 @@ const PRIORITY_OPTIONS = [
     description: 'Non-urgent request',
     value: 'low',
   },
+  {
+    label: '⚪ None',
+    description: 'Remove the priority from this ticket',
+    value: 'none',
+  },
 ];
-
 function buildPriorityMenu() {
   const menu = new StringSelectMenuBuilder()
     .setCustomId('ticket_priority_select')
@@ -54,7 +58,7 @@ function buildPriorityMenu() {
 /*
  * Priority BUTTON
  *
- * This opens the priority selector.
+ * Opens the priority selector.
  */
 export const priorityDropdownButton = {
   name: 'ticket_priority',
@@ -119,7 +123,7 @@ export const priorityDropdownButton = {
 /*
  * Priority SELECT MENU
  *
- * This handles the actual selection.
+ * Handles the actual selection.
  */
 export const prioritySelectMenu = {
   name: 'ticket_priority_select',
@@ -180,12 +184,6 @@ export const prioritySelectMenu = {
             option.value === selectedPriority
         );
 
-      /*
-       * For now we update the ticket channel name.
-       *
-       * This avoids relying on a deleted/missing database
-       * function and keeps the ticket system functional.
-       */
       const channel = interaction.channel;
 
       if (!channel) {
@@ -199,19 +197,42 @@ export const prioritySelectMenu = {
       }
 
       /*
-       * Keep the existing ticket name intact and only add
-       * the priority indicator if it isn't already present.
+       * Remove any existing priority prefix.
+       *
+       * Supports:
+       * urgent-
+       * high-
+       * medium-
+       * low-
        */
-      let newName = channel.name
-        .replace(/^🔴-|^🟠-|^🟡-|^🟢-/u, '');
+      let newName = channel.name.replace(
+        /^(?:urgent|high|medium|low)-/i,
+        ''
+      );
 
-      newName = `${priority.value}-${newName}`;
+      /*
+       * NONE
+       *
+       * Reset the channel name back to its
+       * original name with no priority prefix.
+       */
+      if (selectedPriority === 'none') {
+        await channel.setName(newName);
+      } else {
+        /*
+         * Add the selected priority prefix.
+         */
+        newName =
+          `${selectedPriority}-${newName}`;
 
-      await channel.setName(newName);
+        await channel.setName(newName);
+      }
 
       await interaction.update({
         content:
-          `✅ Ticket priority set to **${priority.label}**.`,
+          selectedPriority === 'none'
+            ? '✅ Ticket priority removed. It is now **None**.'
+            : `✅ Ticket priority set to **${priority.label}**.`,
         components: [],
       });
 
