@@ -58,12 +58,12 @@ export const NORMAL_TICKET_CONFIG = {
     color: 0xF8D568,
 
     imageUrl:
-        'https://media.discordapp.net/attachments/1543682115798044853/1544048276439830708/content.png?ex=6a971684&is=6a95c504&hm=821c388fb27d6dd929e11bfcdbd2dbb46c164261d&=&format=webp&quality=lossless&width=768&height=392',
+        'Null",
 
     panelTitle: 'Fruity Tickets',
 
     panelDescription:
-        'Need help with FruityINC? Select the option below that best matches what you need.',
+        'Need help with Fruity? Select the option below that best matches what you need.',
 
     buttons: [
         {
@@ -71,7 +71,7 @@ export const NORMAL_TICKET_CONFIG = {
             label: 'Fruity Application',
             emoji: '📋',
             description:
-                'Apply to join FruityINC.',
+                'Apply to join Fruity.',
         },
 
         {
@@ -79,7 +79,7 @@ export const NORMAL_TICKET_CONFIG = {
             label: 'General FAQ',
             emoji: '❓',
             description:
-                'Ask a general question about FruityINC.',
+                'Ask a general question about Fruity.',
         },
 
         {
