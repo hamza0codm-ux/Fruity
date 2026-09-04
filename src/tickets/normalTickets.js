@@ -57,11 +57,8 @@ export const NORMAL_TICKET_CONFIG = {
 
     color: 0xF8D568,
 
-    /*
-     * Fruity Tickets panel image
-     */
     imageUrl:
-        'https://media.discordapp.net/attachments/1543682115798044853/1544048276439830708/content.png?ex=6a971684&is=6a95c504&hm=821c388fb27d6dd929e11bfcdd5c5dd1949198bec6adfbcdbd2dbb46c164261d&=&format=webp&quality=lossless&width=768&height=392',
+        'https://media.discordapp.net/attachments/1543682115798044853/1544048276439830708/content.png?ex=6a971684&is=6a95c504&hm=821c388fb27d6dd929e11bfcdbd2dbb46c164261d&=&format=webp&quality=lossless&width=768&height=392',
 
     panelTitle: 'Fruity Tickets',
 
@@ -133,7 +130,7 @@ function getPriorityInfo(priority = 'none') {
 function stripPriorityFromName(name) {
     return String(name || '')
         .replace(
-            /^(?:⚪|🟢|🟡|🔴|🚨)\s*/u,
+            /^(?:⚪|🟢|🟡|🟠|🔴|🚨)\s*/u,
             ''
         )
         .trim();
@@ -141,8 +138,7 @@ function stripPriorityFromName(name) {
 
 
 function applyPriorityToName(name, priority) {
-    const cleanName =
-        stripPriorityFromName(name);
+    const cleanName = stripPriorityFromName(name);
 
     if (
         !priority ||
@@ -481,6 +477,12 @@ export async function createNormalTicket(
     }
 
 
+    /*
+     * INTERNAL TICKET NUMBER
+     *
+     * This remains in the database/logs,
+     * but is NOT shown in the opening message.
+     */
     const ticketNumber =
         await incrementTicketCounter(
             guild.id
@@ -521,6 +523,9 @@ export async function createNormalTicket(
         );
 
 
+    /*
+     * CREATE CHANNEL
+     */
     const channel =
         await guild.channels.create({
             name:
@@ -569,6 +574,11 @@ export async function createNormalTicket(
         });
 
 
+    /*
+     * TICKET DATA
+     *
+     * ticketNumber is still stored internally.
+     */
     const ticketData = {
         id:
             ticketNumber,
@@ -633,6 +643,12 @@ export async function createNormalTicket(
         getPriorityInfo('none');
 
 
+    /*
+     * ORIGINAL TICKET MESSAGE
+     *
+     * This is the message that Claim and Priority
+     * should update later.
+     */
     const embed =
         new EmbedBuilder()
             .setColor(
@@ -686,9 +702,9 @@ export async function createNormalTicket(
                         '\u200b',
 
                     value:
-                        'The Fruity Support Team will help you soon.\n' +
-                        'Please provide your details now so we can assist you faster.\n' +
-                        'Please do not ping owners or staff members too much.',
+                        'The Fruity Support Team will assist you shortly,\n' +
+                        'In the meantime please provide your request and information to speed up the process,\n' +
+                        'We ask you to not ping our staff whilst this ticket is open.',
 
                     inline:
                         false,
@@ -721,7 +737,6 @@ export async function createNormalTicket(
                         ButtonStyle.Primary
                     ),
 
-
                 /*
                  * PRIORITY
                  */
@@ -738,7 +753,6 @@ export async function createNormalTicket(
                     .setStyle(
                         ButtonStyle.Secondary
                     ),
-
 
                 /*
                  * CLOSE
@@ -759,35 +773,58 @@ export async function createNormalTicket(
             );
 
 
-    await channel.send({
-        content:
-            member.toString(),
+    /*
+     * SEND ONLY ONE OPENING MESSAGE
+     */
+    const ticketMessage =
+        await channel.send({
+            content:
+                member.toString(),
 
-        embeds:
-            [
-                embed
+            embeds: [
+                embed,
             ],
 
-        components:
-            [
-                controls
+            components: [
+                controls,
             ],
 
-        allowedMentions: {
-            users:
-                [
-                    member.id
+            allowedMentions: {
+                users: [
+                    member.id,
                 ],
 
-            roles:
-                [],
-        },
-    });
+                roles: [],
+            },
+        });
+
+
+    /*
+     * Save the original ticket message ID.
+     *
+     * This gives Claim/Priority/Close a reliable
+     * message to edit instead of searching by title.
+     */
+    await saveTicketData(
+        guild.id,
+        channel.id,
+        {
+            ...ticketData,
+            mainMessageId:
+                ticketMessage.id,
+        }
+    );
 
 
     return {
         channel,
-        ticketData,
+        ticketData: {
+            ...ticketData,
+            mainMessageId:
+                ticketMessage.id,
+        },
+        message:
+            ticketMessage,
     };
 }
 
