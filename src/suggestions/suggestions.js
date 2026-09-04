@@ -78,7 +78,6 @@ export async function getSuggestions(guildId) {
             : [];
 
     } catch (error) {
-
         logger.error(
             `Failed to get suggestions for guild ${guildId}:`,
             error
@@ -94,7 +93,6 @@ export async function saveSuggestions(
     suggestions
 ) {
     try {
-
         await setInDb(
             getSuggestionKey(guildId),
             suggestions
@@ -103,7 +101,6 @@ export async function saveSuggestions(
         return true;
 
     } catch (error) {
-
         logger.error(
             `Failed to save suggestions for guild ${guildId}:`,
             error
@@ -142,26 +139,15 @@ export async function createSuggestion({
     username,
     suggestion,
 }) {
-
     const suggestions =
         await getSuggestions(guildId);
 
-    /*
-     * Internal ID.
-     *
-     * This is NOT displayed to users.
-     *
-     * It is required internally so the
-     * Approve/Deny buttons know which
-     * suggestion they belong to.
-     */
     const id =
         `${Date.now().toString(36)}-${Math.random()
             .toString(36)
             .slice(2, 8)}`;
 
     const record = {
-
         id,
 
         guildId,
@@ -209,7 +195,6 @@ export async function updateSuggestion(
     suggestionId,
     updates
 ) {
-
     const suggestions =
         await getSuggestions(guildId);
 
@@ -245,9 +230,7 @@ export async function updateSuggestion(
 */
 
 export function getStatusLabel(status) {
-
     switch (status) {
-
         case 'accepted':
             return '🟢 Accepted';
 
@@ -262,9 +245,7 @@ export function getStatusLabel(status) {
 
 
 export function getStatusEmoji(status) {
-
     switch (status) {
-
         case 'accepted':
             return '🟢';
 
@@ -279,9 +260,7 @@ export function getStatusEmoji(status) {
 
 
 export function formatStatus(status) {
-
     switch (status) {
-
         case 'accepted':
             return 'Accepted';
 
@@ -302,7 +281,6 @@ export function formatStatus(status) {
 */
 
 export function buildSuggestionPanel() {
-
     const embed =
         new EmbedBuilder()
             .setColor(
@@ -326,12 +304,15 @@ export function buildSuggestionPanel() {
             SUGGESTION_CONFIG.panelImageUrl
         )
     ) {
-
         embed.setImage(
             SUGGESTION_CONFIG.panelImageUrl
         );
     }
 
+
+    /*
+     * PUBLIC BUTTONS
+     */
 
     const buttons =
         new ActionRowBuilder()
@@ -377,11 +358,11 @@ export function buildSuggestionPanel() {
 
     return {
         embeds: [
-            embed
+            embed,
         ],
 
         components: [
-            buttons
+            buttons,
         ],
     };
 }
@@ -396,7 +377,6 @@ export function buildSuggestionPanel() {
 export function buildAdminSuggestionEmbed(
     suggestion
 ) {
-
     let color =
         SUGGESTION_CONFIG.color;
 
@@ -405,7 +385,6 @@ export function buildAdminSuggestionEmbed(
         suggestion.status ===
         'accepted'
     ) {
-
         color = 0x57F287;
     }
 
@@ -414,7 +393,6 @@ export function buildAdminSuggestionEmbed(
         suggestion.status ===
         'denied'
     ) {
-
         color = 0xED4245;
     }
 
@@ -465,45 +443,50 @@ export function buildAdminSuggestionEmbed(
             });
 
 
-   /*
- * Reviewed By
- */
+    /*
+     * Reviewed By
+     */
 
-if (suggestion.reviewedBy) {
+    if (suggestion.reviewedBy) {
+        embed.addFields({
+            name: 'Reviewed By',
 
-    embed.addFields({
-        name: 'Reviewed By',
+            value:
+                `<@${suggestion.reviewedBy}>`,
 
-        value:
-            `<@${suggestion.reviewedBy}>`,
+            inline: false,
+        });
+    }
 
-        inline: false,
-    });
+
+    /*
+     * Reviewed At
+     */
+
+    if (suggestion.reviewedAt) {
+        embed.addFields({
+            name: 'Reviewed At',
+
+            value:
+                `<t:${Math.floor(
+                    new Date(
+                        suggestion.reviewedAt
+                    ).getTime() / 1000
+                )}:F>`,
+
+            inline: false,
+        });
+    }
+
+
+    /*
+     * IMPORTANT:
+     * Close buildAdminSuggestionEmbed()
+     */
+
+    return embed;
 }
 
-
-/*
- * Reviewed At
- */
-
-if (suggestion.reviewedAt) {
-
-    embed.addFields({
-        name: 'Reviewed At',
-
-        value:
-            `<t:${Math.floor(
-                new Date(
-                    suggestion.reviewedAt
-                ).getTime() / 1000
-            )}:F>`,
-
-        inline: false,
-    });
-}
-
-
-return embed;
 
 /*
 |--------------------------------------------------------------------------
@@ -514,7 +497,6 @@ return embed;
 export function buildAdminSuggestionButtons(
     suggestion
 ) {
-
     const finished =
         suggestion.status === 'accepted' ||
         suggestion.status === 'denied';
@@ -577,7 +559,6 @@ export function buildAdminSuggestionButtons(
 export async function reconcileSuggestionPanel(
     client
 ) {
-
     const channelId =
         SUGGESTION_CONFIG.panelChannelId;
 
@@ -587,7 +568,6 @@ export async function reconcileSuggestionPanel(
         channelId ===
             'PUT_SUGGESTION_PANEL_CHANNEL_ID_HERE'
     ) {
-
         logger.warn(
             'Suggestions: panelChannelId has not been configured.'
         );
@@ -597,7 +577,6 @@ export async function reconcileSuggestionPanel(
 
 
     try {
-
         const channel =
             await client.channels.fetch(
                 channelId
@@ -608,7 +587,6 @@ export async function reconcileSuggestionPanel(
             !channel ||
             !channel.isTextBased()
         ) {
-
             logger.warn(
                 `Suggestions: channel ${channelId} is invalid or not text based.`
             );
@@ -628,7 +606,7 @@ export async function reconcileSuggestionPanel(
 
 
         /*
-         * Find existing panel.
+         * Find existing public suggestion panel.
          */
 
         const existing =
@@ -660,7 +638,6 @@ export async function reconcileSuggestionPanel(
          */
 
         if (existing) {
-
             await existing.edit(
                 payload
             );
@@ -690,9 +667,7 @@ export async function reconcileSuggestionPanel(
 
         return message;
 
-
     } catch (error) {
-
         logger.error(
             'Suggestions: failed to reconcile panel:',
             error
