@@ -29,7 +29,7 @@ export const SUGGESTION_CONFIG = {
      *
      * This is the channel where the PUBLIC suggestion panel goes.
      */
-    panelChannelId: 'PUT_SUGGESTION_PANEL_CHANNEL_ID_HERE',
+    panelChannelId: '1545071209429999736',
 
     /*
      * ================================================================
