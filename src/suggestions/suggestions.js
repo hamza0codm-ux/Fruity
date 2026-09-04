@@ -437,14 +437,6 @@ export function buildAdminSuggestionEmbed(
                     inline: true,
                 },
 
-                {
-                    name: 'Suggestion ID',
-                    value:
-                        `\`${suggestion.id}\``,
-                    inline: true,
-                }
-            )
-
             .setTimestamp(
                 new Date(
                     suggestion.createdAt
