@@ -24,7 +24,7 @@ import {
 | WELCOME CONFIGURATION
 |--------------------------------------------------------------------------
 |
-| Everything for the welcome system is configured here.
+| Put the channel ID where you want welcome messages sent.
 |
 */
 
@@ -41,41 +41,6 @@ const WELCOME_CHANNEL_ID = 'YOUR_WELCOME_CHANNEL_ID';
 */
 
 const AUTO_ROLE_ID = '1541554587658625104';
-
-
-/*
-|--------------------------------------------------------------------------
-| WELCOME LINKS
-|--------------------------------------------------------------------------
-*/
-
-const WELCOME_LINKS = [
-    {
-        name: 'Server Rules',
-        emoji: '📜',
-        url: 'https://discord.com/channels/1541083989786370080/1541550498925256744',
-    },
-    {
-        name: 'Information',
-        emoji: '📚',
-        url: 'https://discord.com/channels/1541083989786370080/1545439852487778455',
-    },
-    {
-        name: 'Tickets',
-        emoji: '🎫',
-        url: 'https://discord.com/channels/1541083989786370080/1541550578495127592',
-    },
-    {
-        name: 'Community',
-        emoji: '💬',
-        url: 'https://discord.com/channels/1541083989786370080/1543030791599300759',
-    },
-    {
-        name: 'Announcements',
-        emoji: '📢',
-        url: 'https://discord.com/channels/1541083989786370080/1541551382958579782',
-    },
-];
 
 
 /*
@@ -119,9 +84,22 @@ export default {
 
             } else {
 
+                /*
+                |--------------------------------------------------------------------------
+                | PERMISSIONS
+                |--------------------------------------------------------------------------
+                */
+
+                const botMember =
+                    guild.members.me ||
+                    await guild.members.fetch(
+                        guild.client.user.id
+                    ).catch(() => null);
+
+
                 const permissions =
                     welcomeChannel.permissionsFor(
-                        guild.members.me
+                        botMember
                     );
 
 
@@ -153,12 +131,13 @@ export default {
                     const description = [
                         `We’re so excited to have you join us, make sure to check out all the essential channels to get the full experience!`,
                         '',
-                        ...WELCOME_LINKS.map(
-                            link =>
-                                `${link.emoji} [${link.name}](${link.url})`
-                        ),
+                        'https://discord.com/channels/1541083989786370080/1541550498925256744',
+                        'https://discord.com/channels/1541083989786370080/1545439852487778455',
+                        'https://discord.com/channels/1541083989786370080/1541550578495127592',
+                        'https://discord.com/channels/1541083989786370080/1543030791599300759',
+                        'https://discord.com/channels/1541083989786370080/1541551382958579782',
                         '',
-                        `Hope you enjoy your stay here ❤️`,
+                        'Hope you enjoy your stay here ❤️',
                     ].join('\n');
 
 
@@ -206,12 +185,8 @@ export default {
 
                     /*
                     |--------------------------------------------------------------------------
-                    | OPTIONAL IMAGE
+                    | OPTIONAL WELCOME IMAGE
                     |--------------------------------------------------------------------------
-                    |
-                    | If you have a welcome image configured in bot.js,
-                    | it will still be used.
-                    |
                     */
 
                     const welcomeImage =
@@ -231,11 +206,11 @@ export default {
 
                     /*
                     |--------------------------------------------------------------------------
-                    | SEND MESSAGE
+                    | SEND WELCOME
                     |--------------------------------------------------------------------------
                     |
-                    | The member gets a normal Discord ping.
-                    | The actual welcome content is the embed.
+                    | The member is pinged in a normal Discord message.
+                    | The actual welcome message is inside the embed.
                     |
                     */
 
