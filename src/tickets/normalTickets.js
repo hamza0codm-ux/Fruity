@@ -277,14 +277,13 @@ export function buildNormalTicketPanel() {
    STARTUP PANEL
    ============================================================ */
 
-export async function reconcileNormalTicketPanel(
-    client
-) {
+export async function reconcileNormalTicketPanel(client) {
     try {
         const channel =
             await client.channels.fetch(
                 NORMAL_TICKET_CONFIG.panelChannelId
             );
+
 
         if (
             !channel ||
@@ -303,16 +302,21 @@ export async function reconcileNormalTicketPanel(
             });
 
 
+        /*
+         * Find the existing normal ticket panel.
+         */
         const existing =
             messages.find(message => {
                 if (!message.author?.bot) {
                     return false;
                 }
 
+
                 const raw =
                     JSON.stringify(
                         message.components
                     );
+
 
                 return raw.includes(
                     'normal_ticket_create:'
@@ -320,32 +324,41 @@ export async function reconcileNormalTicketPanel(
             });
 
 
+        /*
+         * DO NOT EDIT AN EXISTING PANEL.
+         *
+         * If the panel already exists, leave it
+         * completely untouched so Discord does not
+         * show "Edited" every time the bot restarts.
+         */
+        if (existing) {
+            logger.info(
+                '[Normal Tickets] Panel already exists. No changes made.'
+            );
+
+            return;
+        }
+
+
+        /*
+         * CREATE PANEL IF IT DOES NOT EXIST.
+         */
         const components = [
             buildNormalTicketPanel(),
         ];
 
 
-        if (existing) {
-            await existing.edit({
-                components,
-                flags:
-                    MessageFlags.IsComponentsV2,
-            });
+        await channel.send({
+            components,
+            flags:
+                MessageFlags.IsComponentsV2,
+        });
 
-            logger.info(
-                '[Normal Tickets] Panel updated.'
-            );
-        } else {
-            await channel.send({
-                components,
-                flags:
-                    MessageFlags.IsComponentsV2,
-            });
 
-            logger.info(
-                '[Normal Tickets] Panel created.'
-            );
-        }
+        logger.info(
+            '[Normal Tickets] Panel created.'
+        );
+
 
     } catch (error) {
         logger.error(
@@ -818,11 +831,13 @@ export async function createNormalTicket(
 
     return {
         channel,
+
         ticketData: {
             ...ticketData,
             mainMessageId:
                 ticketMessage.id,
         },
+
         message:
             ticketMessage,
     };
