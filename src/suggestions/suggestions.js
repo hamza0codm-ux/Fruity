@@ -320,7 +320,7 @@ export function buildSuggestionPanel() {
             )
             .setDescription(
                 'Have an idea, improvement, or suggestion for Fruity?\n\n' +
-                'We want to hear what you think. Submit your idea below and our administration team will review it.'
+                'We want to hear what you think. Submit your idea below and our team will review it.'
             );
 
     /*
