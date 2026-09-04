@@ -67,7 +67,7 @@ export const MERCH_TICKET_CONFIG = {
     panelTitle: 'Merch Tickets',
 
     panelDescription:
-        'Need help with FruityINC merchandise? Select the option below that best matches your request.',
+        'Need help with Fruity merchandise? Select the option below that best matches your request.',
 
     buttons: [
         {
