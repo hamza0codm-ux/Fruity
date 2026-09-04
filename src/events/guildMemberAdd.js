@@ -23,9 +23,6 @@ import {
 |--------------------------------------------------------------------------
 | WELCOME CONFIGURATION
 |--------------------------------------------------------------------------
-|
-| Put the channel ID where you want welcome messages sent.
-|
 */
 
 const WELCOME_CHANNEL_ID = '1541550434077114418';
@@ -35,9 +32,6 @@ const WELCOME_CHANNEL_ID = '1541550434077114418';
 |--------------------------------------------------------------------------
 | AUTO ROLE
 |--------------------------------------------------------------------------
-|
-| This role is automatically given to every new member.
-|
 */
 
 const AUTO_ROLE_ID = '1541554587658625104';
@@ -45,7 +39,7 @@ const AUTO_ROLE_ID = '1541554587658625104';
 
 /*
 |--------------------------------------------------------------------------
-| MAIN EVENT
+| WELCOME MESSAGE
 |--------------------------------------------------------------------------
 */
 
@@ -54,39 +48,62 @@ export default {
 
     async execute(member) {
 
-        const guild = member.guild;
-        const user = member.user;
-
-        if (!guild || !user) {
-            return;
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | WELCOME MESSAGE
-        |--------------------------------------------------------------------------
-        */
-
         try {
 
-            const welcomeChannel =
-                guild.channels.cache.get(
-                    WELCOME_CHANNEL_ID
+            /*
+            |--------------------------------------------------------------------------
+            | BASIC VALIDATION
+            |--------------------------------------------------------------------------
+            */
+
+            if (!member) {
+                logger.warn(
+                    'guildMemberAdd fired without a member.'
                 );
+
+                return;
+            }
+
+            const guild = member.guild;
+            const user = member.user;
+
+            if (!guild || !user) {
+                logger.warn(
+                    'guildMemberAdd fired without a valid guild or user.'
+                );
+
+                return;
+            }
+
+
+            logger.info(
+                `New member joined ${guild.name}: ${user.tag} (${user.id})`
+            );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | WELCOME CHANNEL
+            |--------------------------------------------------------------------------
+            */
+
+            const welcomeChannel =
+                await guild.channels.fetch(
+                    WELCOME_CHANNEL_ID
+                ).catch(() => null);
 
 
             if (!welcomeChannel) {
 
                 logger.warn(
-                    `Welcome channel ${WELCOME_CHANNEL_ID} was not found in guild ${guild.id}.`
+                    `Welcome channel ${WELCOME_CHANNEL_ID} could not be found in guild ${guild.id}.`
                 );
 
             } else {
 
                 /*
                 |--------------------------------------------------------------------------
-                | PERMISSIONS
+                | CHECK BOT PERMISSIONS
                 |--------------------------------------------------------------------------
                 */
 
@@ -97,174 +114,180 @@ export default {
                     ).catch(() => null);
 
 
-                const permissions =
-                    welcomeChannel.permissionsFor(
-                        botMember
-                    );
-
-
-                const canView =
-                    permissions?.has(
-                        PermissionFlagsBits.ViewChannel
-                    );
-
-                const canSend =
-                    permissions?.has(
-                        PermissionFlagsBits.SendMessages
-                    );
-
-
-                if (!canView || !canSend) {
+                if (!botMember) {
 
                     logger.warn(
-                        `Bot cannot send welcome message in ${welcomeChannel.name} (${guild.id}).`
+                        `Could not find the bot member in ${guild.name}.`
                     );
 
                 } else {
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | WELCOME DESCRIPTION
-                    |--------------------------------------------------------------------------
-                    */
-
-                    const description = [
-                        `We’re so excited to have you join us, make sure to check out all the essential channels to get the full experience!`,
-                        '',
-                        'https://discord.com/channels/1541083989786370080/1541550498925256744',
-                        'https://discord.com/channels/1541083989786370080/1545439852487778455',
-                        'https://discord.com/channels/1541083989786370080/1541550578495127592',
-                        'https://discord.com/channels/1541083989786370080/1543030791599300759',
-                        'https://discord.com/channels/1541083989786370080/1541551382958579782',
-                        '',
-                        'Hope you enjoy your stay here ❤️',
-                    ].join('\n');
+                    const permissions =
+                        welcomeChannel.permissionsFor(
+                            botMember
+                        );
 
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | WELCOME EMBED
-                    |--------------------------------------------------------------------------
-                    */
+                    const canView =
+                        permissions?.has(
+                            PermissionFlagsBits.ViewChannel
+                        );
 
-                    const embed =
-                        new EmbedBuilder()
-                            .setColor(
-                                getColor()
-                            )
-                            .setTitle(
-                                '👋 Welcome to Fruity!'
-                            )
-                            .setDescription(
-                                description
-                            )
-                            .setThumbnail(
-                                user.displayAvatarURL({
-                                    dynamic: true,
-                                    size: 256,
-                                })
-                            )
-                            .addFields(
-                                {
-                                    name: 'User',
-                                    value: user.toString(),
-                                    inline: true,
-                                },
-                                {
-                                    name: 'Member Count',
-                                    value: guild.memberCount.toString(),
-                                    inline: true,
-                                }
-                            )
-                            .setTimestamp()
-                            .setFooter({
-                                text:
-                                    `Welcome to ${guild.name}!`,
-                            });
+                    const canSend =
+                        permissions?.has(
+                            PermissionFlagsBits.SendMessages
+                        );
 
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | OPTIONAL WELCOME IMAGE
-                    |--------------------------------------------------------------------------
-                    */
+                    if (!canView) {
 
-                    const welcomeImage =
-                        botConfig.welcome?.welcomeImage;
+                        logger.warn(
+                            `Bot does not have ViewChannel permission in #${welcomeChannel.name}.`
+                        );
+
+                    } else if (!canSend) {
+
+                        logger.warn(
+                            `Bot does not have SendMessages permission in #${welcomeChannel.name}.`
+                        );
+
+                    } else {
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | WELCOME DESCRIPTION
+                        |--------------------------------------------------------------------------
+                        */
+
+                        const description = [
+                            `We’re so excited to have you join us, make sure to check out all the essential channels to get the full experience!`,
+                            '',
+                            'https://discord.com/channels/1541083989786370080/1541550498925256744',
+                            'https://discord.com/channels/1541083989786370080/1545439852487778455',
+                            'https://discord.com/channels/1541083989786370080/1541550578495127592',
+                            'https://discord.com/channels/1541083989786370080/1543030791599300759',
+                            'https://discord.com/channels/1541083989786370080/1541551382958579782',
+                            '',
+                            'Hope you enjoy your stay here ❤️',
+                        ].join('\n');
 
 
-                    if (
-                        typeof welcomeImage === 'string' &&
-                        welcomeImage.trim()
-                    ) {
+                        /*
+                        |--------------------------------------------------------------------------
+                        | WELCOME EMBED
+                        |--------------------------------------------------------------------------
+                        */
 
-                        embed.setImage(
+                        const embed =
+                            new EmbedBuilder()
+                                .setColor(
+                                    getColor()
+                                )
+                                .setTitle(
+                                    '👋 Welcome to Fruity!'
+                                )
+                                .setDescription(
+                                    description
+                                )
+                                .setThumbnail(
+                                    user.displayAvatarURL({
+                                        dynamic: true,
+                                        size: 256,
+                                    })
+                                )
+                                .addFields(
+                                    {
+                                        name: 'User',
+                                        value: user.toString(),
+                                        inline: true,
+                                    },
+                                    {
+                                        name: 'Member Count',
+                                        value:
+                                            guild.memberCount.toString(),
+                                        inline: true,
+                                    }
+                                )
+                                .setTimestamp()
+                                .setFooter({
+                                    text:
+                                        `Welcome to ${guild.name}!`,
+                                });
+
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | OPTIONAL IMAGE
+                        |--------------------------------------------------------------------------
+                        */
+
+                        const welcomeImage =
+                            botConfig.welcome?.welcomeImage;
+
+
+                        if (
+                            typeof welcomeImage === 'string' &&
                             welcomeImage.trim()
+                        ) {
+
+                            embed.setImage(
+                                welcomeImage.trim()
+                            );
+                        }
+
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | SEND WELCOME
+                        |--------------------------------------------------------------------------
+                        |
+                        | The member is pinged normally.
+                        | The welcome message itself is the embed.
+                        |
+                        */
+
+                        await welcomeChannel.send({
+
+                            content:
+                                user.toString(),
+
+                            allowedMentions: {
+                                users: [
+                                    user.id,
+                                ],
+                            },
+
+                            embeds: [
+                                embed,
+                            ],
+
+                        });
+
+
+                        logger.info(
+                            `Welcome message sent for ${user.tag} in ${guild.name}.`
                         );
                     }
-
-
-                    /*
-                    |--------------------------------------------------------------------------
-                    | SEND WELCOME
-                    |--------------------------------------------------------------------------
-                    |
-                    | The member is pinged in a normal Discord message.
-                    | The actual welcome message is inside the embed.
-                    |
-                    */
-
-                    await welcomeChannel.send({
-
-                        content:
-                            user.toString(),
-
-                        allowedMentions: {
-                            users: [
-                                user.id,
-                            ],
-                        },
-
-                        embeds: [
-                            embed,
-                        ],
-
-                    });
-
-
-                    logger.info(
-                        `Sent welcome message for ${user.tag} in ${guild.name}.`
-                    );
                 }
             }
 
-        } catch (error) {
 
-            logger.error(
-                `Failed to send welcome message for ${user.tag}:`,
-                error
-            );
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | AUTO ROLE
-        |--------------------------------------------------------------------------
-        */
-
-        try {
+            /*
+            |--------------------------------------------------------------------------
+            | AUTO ROLE
+            |--------------------------------------------------------------------------
+            */
 
             const role =
-                guild.roles.cache.get(
+                await guild.roles.fetch(
                     AUTO_ROLE_ID
-                );
+                ).catch(() => null);
 
 
             if (!role) {
 
                 logger.warn(
-                    `Auto role ${AUTO_ROLE_ID} was not found in guild ${guild.id}.`
+                    `Auto role ${AUTO_ROLE_ID} could not be found in ${guild.name}.`
                 );
 
             } else {
@@ -275,35 +298,35 @@ export default {
                 );
             }
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | MEMBER JOIN LOG
+            |--------------------------------------------------------------------------
+            */
+
+            try {
+
+                await logEvent(
+                    guild,
+                    EVENT_TYPES.MEMBER_JOIN,
+                    {
+                        member,
+                    }
+                );
+
+            } catch (error) {
+
+                logger.error(
+                    `Failed to log member join for ${user.tag}:`,
+                    error
+                );
+            }
+
         } catch (error) {
 
             logger.error(
-                `Failed to process auto role for ${user.tag}:`,
-                error
-            );
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | MEMBER JOIN LOG
-        |--------------------------------------------------------------------------
-        */
-
-        try {
-
-            await logEvent(
-                guild,
-                EVENT_TYPES.MEMBER_JOIN,
-                {
-                    member,
-                }
-            );
-
-        } catch (error) {
-
-            logger.error(
-                `Failed to log member join for ${user.tag}:`,
+                `guildMemberAdd failed for ${member?.user?.tag || 'unknown user'}:`,
                 error
             );
         }
@@ -324,12 +347,7 @@ async function assignRoleSafely(
 
     try {
 
-        if (!member?.guild) {
-            return false;
-        }
-
-
-        if (!role) {
+        if (!member?.guild || !role) {
             return false;
         }
 
@@ -345,6 +363,10 @@ async function assignRoleSafely(
                 role.id
             )
         ) {
+
+            logger.info(
+                `${member.user.tag} already has ${role.name}.`
+            );
 
             return true;
         }
@@ -363,7 +385,7 @@ async function assignRoleSafely(
         if (!botMember) {
 
             logger.warn(
-                `Could not resolve bot member in guild ${member.guild.id}.`
+                `Could not resolve bot member in ${member.guild.name}.`
             );
 
             return false;
@@ -379,7 +401,8 @@ async function assignRoleSafely(
         if (!role.editable) {
 
             logger.warn(
-                `Cannot assign role ${role.name} (${role.id}) because the role is higher than or equal to the bot's highest role.`
+                `Cannot assign ${role.name} to ${member.user.tag}. ` +
+                `The role must be BELOW the bot's highest role.`
             );
 
             return false;
@@ -399,7 +422,7 @@ async function assignRoleSafely(
 
 
         logger.info(
-            `Assigned auto role ${role.name} (${role.id}) to ${member.user.tag}.`
+            `Assigned ${role.name} (${role.id}) to ${member.user.tag}.`
         );
 
 
@@ -408,7 +431,8 @@ async function assignRoleSafely(
     } catch (error) {
 
         logger.error(
-            `Failed to assign auto role ${role?.id || 'unknown'} to ${member?.user?.tag || 'unknown user'}:`,
+            `Failed to assign role ${role?.name || role?.id || 'unknown'} ` +
+            `to ${member?.user?.tag || 'unknown user'}:`,
             error
         );
 
