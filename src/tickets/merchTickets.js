@@ -15,6 +15,8 @@ import {
     TextDisplayBuilder,
     TextInputBuilder,
     TextInputStyle,
+    MediaGalleryBuilder,
+    MediaGalleryItemBuilder,
     MessageFlags,
 } from 'discord.js';
 
@@ -129,6 +131,37 @@ function getPriorityInfo(priority = 'none') {
 }
 
 
+function stripPriorityFromName(name) {
+    return String(name || '')
+        .replace(
+            /^(?:⚪|🟢|🟡|🟠|🔴|🚨)\s*/u,
+            ''
+        )
+        .trim();
+}
+
+
+function applyPriorityToName(name, priority) {
+    const cleanName =
+        stripPriorityFromName(name);
+
+    if (
+        !priority ||
+        priority === 'none'
+    ) {
+        return cleanName;
+    }
+
+    const priorityInfo =
+        getPriorityInfo(priority);
+
+    return `${priorityInfo.emoji} ${cleanName}`.slice(
+        0,
+        100
+    );
+}
+
+
 /* ============================================================
    MERCH TICKET PANEL
    ============================================================ */
@@ -221,8 +254,6 @@ export function buildMerchTicketPanel() {
 
         /*
          * LARGE DIVIDER AFTER EACH OPTION
-         *
-         * This matches the Normal Tickets panel.
          */
         container.addSeparatorComponents(
             new SeparatorBuilder()
@@ -281,9 +312,6 @@ export async function reconcileMerchTicketPanel(
 
         /*
          * Find the existing merch panel.
-         *
-         * Only bot messages containing our custom ID
-         * are considered.
          */
         const existing =
             messages.find(message => {
@@ -291,10 +319,12 @@ export async function reconcileMerchTicketPanel(
                     return false;
                 }
 
+
                 const raw =
                     JSON.stringify(
                         message.components
                     );
+
 
                 return raw.includes(
                     'merch_ticket_create:'
@@ -313,7 +343,6 @@ export async function reconcileMerchTicketPanel(
         if (existing) {
             await existing.edit({
                 components,
-
                 flags:
                     MessageFlags.IsComponentsV2,
             });
@@ -331,7 +360,6 @@ export async function reconcileMerchTicketPanel(
         else {
             await channel.send({
                 components,
-
                 flags:
                     MessageFlags.IsComponentsV2,
             });
@@ -341,6 +369,7 @@ export async function reconcileMerchTicketPanel(
                 '[Merch Tickets] Panel created.'
             );
         }
+
 
     } catch (error) {
         logger.error(
@@ -371,6 +400,7 @@ export async function showMerchTicketModal(
             flags:
                 MessageFlags.Ephemeral,
         });
+
 
         return;
     }
@@ -480,7 +510,10 @@ export async function createMerchTicket(
 
 
     /*
-     * TICKET NUMBER
+     * INTERNAL TICKET NUMBER
+     *
+     * This stays in the database/logs,
+     * but is NOT displayed in the ticket message.
      */
     const ticketNumber =
         await incrementTicketCounter(
@@ -512,6 +545,7 @@ export async function createMerchTicket(
         )
     ) {
         number++;
+
 
         ticketName =
             `${baseName}-${number}`;
@@ -639,15 +673,12 @@ export async function createMerchTicket(
     );
 
 
-    /*
-     * PRIORITY
-     */
     const priority =
         getPriorityInfo('none');
 
 
     /*
-     * TICKET EMBED
+     * ORIGINAL TICKET MESSAGE
      */
     const embed =
         new EmbedBuilder()
@@ -688,13 +719,26 @@ export async function createMerchTicket(
 
                 {
                     name:
-                        'Ticket',
+                        '\u200b',
 
                     value:
-                        `#${ticketNumber}`,
+                        '────────────────────────',
 
                     inline:
-                        true,
+                        false,
+                },
+
+                {
+                    name:
+                        '\u200b',
+
+                    value:
+                        'The Fruity Support Team will assist you shortly,\n' +
+                        'In the meantime please provide your request and information to speed up the process,\n' +
+                        'We ask you to not ping our staff whilst this ticket is open.',
+
+                    inline:
+                        false,
                 }
             )
             .setTimestamp();
@@ -724,11 +768,8 @@ export async function createMerchTicket(
                         ButtonStyle.Primary
                     ),
 
-
                 /*
                  * PRIORITY
-                 *
-                 * MUST MATCH THE NORMAL TICKET BUTTON.
                  */
                 new ButtonBuilder()
                     .setCustomId(
@@ -743,7 +784,6 @@ export async function createMerchTicket(
                     .setStyle(
                         ButtonStyle.Secondary
                     ),
-
 
                 /*
                  * CLOSE
@@ -765,56 +805,61 @@ export async function createMerchTicket(
 
 
     /*
-     * SEND TICKET HEADER
-     *
-     * STAFF ROLE IS NOT PINGED.
+     * SEND ONLY ONE OPENING MESSAGE
      */
-    await channel.send({
-        content:
-            member.toString(),
+    const ticketMessage =
+        await channel.send({
+            content:
+                member.toString(),
 
-        embeds:
-            [
-                embed
+            embeds: [
+                embed,
             ],
 
-        components:
-            [
-                controls
+            components: [
+                controls,
             ],
 
-        allowedMentions: {
-            users:
-                [
-                    member.id
+            allowedMentions: {
+                users: [
+                    member.id,
                 ],
 
-            roles:
-                [],
-        },
-    });
+                roles: [],
+            },
+        });
 
 
     /*
-     * WELCOME MESSAGE
+     * SAVE THE ORIGINAL MESSAGE ID
+     *
+     * Claim/Priority can use this exact message
+     * instead of trying to find it by its title.
      */
-    await channel.send({
-        embeds: [
-            new EmbedBuilder()
-                .setColor(
-                    MERCH_TICKET_CONFIG.color
-                )
-                .setDescription(
-                    '🛍️ A member of our Customer Service team will assist you here.\n\n' +
-                    'Please provide your order information or any details that will help us resolve your request.'
-                ),
-        ],
-    });
+    await saveTicketData(
+        guild.id,
+        channel.id,
+        {
+            ...ticketData,
+
+            mainMessageId:
+                ticketMessage.id,
+        }
+    );
 
 
     return {
         channel,
-        ticketData,
+
+        ticketData: {
+            ...ticketData,
+
+            mainMessageId:
+                ticketMessage.id,
+        },
+
+        message:
+            ticketMessage,
     };
 }
 
@@ -876,6 +921,7 @@ export const merchTicketModal = {
                     MessageFlags.Ephemeral,
             });
 
+
             return;
         }
 
@@ -899,6 +945,7 @@ export const merchTicketModal = {
                 content:
                     `✅ Your merchandise ticket has been created: ${result.channel}`,
             });
+
 
         } catch (error) {
             logger.error(
