@@ -672,13 +672,26 @@ export async function createNormalTicket(
 
                 {
                     name:
-                        'Ticket',
+                        '\u200b',
 
                     value:
-                        `#${ticketNumber}`,
+                        '────────────────────────',
 
                     inline:
-                        true,
+                        false,
+                },
+
+                {
+                    name:
+                        '\u200b',
+
+                    value:
+                        'The Fruity Support Team will help you soon.\n' +
+                        'Please provide your details now so we can assist you faster.\n' +
+                        'Please do not ping owners or staff members too much.',
+
+                    inline:
+                        false,
                 }
             )
             .setTimestamp();
@@ -711,13 +724,6 @@ export async function createNormalTicket(
 
                 /*
                  * PRIORITY
-                 *
-                 * IMPORTANT:
-                 * This MUST match:
-                 *
-                 * src/interactions/buttons/ticket/priority.js
-                 *
-                 * name: 'ticket_priority'
                  */
                 new ButtonBuilder()
                     .setCustomId(
@@ -776,23 +782,6 @@ export async function createNormalTicket(
             roles:
                 [],
         },
-    });
-
-
-    /*
-     * TICKET WELCOME MESSAGE
-     */
-    await channel.send({
-        embeds: [
-            new EmbedBuilder()
-                .setColor(
-                    NORMAL_TICKET_CONFIG.color
-                )
-                .setDescription(
-                    '👋 A member of the FruityINC team will assist you here.\n\n' +
-                    'Please provide any information needed to resolve your request.'
-                ),
-        ],
     });
 
 
