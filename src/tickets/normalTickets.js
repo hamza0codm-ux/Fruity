@@ -58,7 +58,7 @@ export const NORMAL_TICKET_CONFIG = {
     color: 0xF8D568,
 
     imageUrl:
-        'Null",
+        'Null',
 
     panelTitle: 'Fruity Tickets',
 
