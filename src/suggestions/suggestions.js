@@ -465,47 +465,45 @@ export function buildAdminSuggestionEmbed(
             });
 
 
-    /*
-     * Reviewed By
-     */
+   /*
+ * Reviewed By
+ */
 
-    if (suggestion.reviewedBy) {
+if (suggestion.reviewedBy) {
 
-        embed.addFields({
-            name: 'Reviewed By',
+    embed.addFields({
+        name: 'Reviewed By',
 
-            value:
-                `<@${suggestion.reviewedBy}>`,
+        value:
+            `<@${suggestion.reviewedBy}>`,
 
-            inline: true,
-        });
-    }
-
-
-    /*
-     * Reviewed At
-     */
-
-    if (suggestion.reviewedAt) {
-
-        embed.addFields({
-            name: 'Reviewed At',
-
-            value:
-                `<t:${Math.floor(
-                    new Date(
-                        suggestion.reviewedAt
-                    ).getTime() / 1000
-                )}:F>`,
-
-            inline: true,
-        });
-    }
-
-
-    return embed;
+        inline: false,
+    });
 }
 
+
+/*
+ * Reviewed At
+ */
+
+if (suggestion.reviewedAt) {
+
+    embed.addFields({
+        name: 'Reviewed At',
+
+        value:
+            `<t:${Math.floor(
+                new Date(
+                    suggestion.reviewedAt
+                ).getTime() / 1000
+            )}:F>`,
+
+        inline: false,
+    });
+}
+
+
+return embed;
 
 /*
 |--------------------------------------------------------------------------
