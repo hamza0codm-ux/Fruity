@@ -5,7 +5,6 @@ import {
 } from 'discord.js';
 
 import {
-    getColor,
     botConfig,
 } from '../config/bot.js';
 
@@ -39,7 +38,7 @@ const AUTO_ROLE_ID = '1541554587658625104';
 
 /*
 |--------------------------------------------------------------------------
-| WELCOME MESSAGE
+| MAIN EVENT
 |--------------------------------------------------------------------------
 */
 
@@ -103,7 +102,7 @@ export default {
 
                 /*
                 |--------------------------------------------------------------------------
-                | CHECK BOT PERMISSIONS
+                | CHECK BOT MEMBER
                 |--------------------------------------------------------------------------
                 */
 
@@ -121,6 +120,12 @@ export default {
                     );
 
                 } else {
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | CHECK PERMISSIONS
+                    |--------------------------------------------------------------------------
+                    */
 
                     const permissions =
                         welcomeChannel.permissionsFor(
@@ -180,9 +185,7 @@ export default {
 
                         const embed =
                             new EmbedBuilder()
-                                .setColor(
-                                    getColor()
-                                )
+                                .setColor(0xF8D568)
                                 .setTitle(
                                     '👋 Welcome to Fruity!'
                                 )
@@ -217,7 +220,7 @@ export default {
 
                         /*
                         |--------------------------------------------------------------------------
-                        | OPTIONAL IMAGE
+                        | OPTIONAL WELCOME IMAGE
                         |--------------------------------------------------------------------------
                         */
 
@@ -238,11 +241,11 @@ export default {
 
                         /*
                         |--------------------------------------------------------------------------
-                        | SEND WELCOME
+                        | SEND WELCOME MESSAGE
                         |--------------------------------------------------------------------------
                         |
                         | The member is pinged normally.
-                        | The welcome message itself is the embed.
+                        | The actual welcome message is the embed.
                         |
                         */
 
