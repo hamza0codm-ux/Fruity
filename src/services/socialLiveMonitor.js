@@ -15,20 +15,16 @@ let monitorTimer = null;
 
 const checkingGuilds = new Set();
 
-/*
-|--------------------------------------------------------------------------
-| Twitch token cache
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Twitch token cache
+ * ========================================================================== */
 
 let twitchAccessToken = null;
 let twitchTokenExpiresAt = 0;
 
-/*
-|--------------------------------------------------------------------------
-| Generic JSON helper
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Generic JSON helper
+ * ========================================================================== */
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
@@ -44,11 +40,9 @@ async function fetchJson(url, options = {}) {
   return response.json();
 }
 
-/*
-|--------------------------------------------------------------------------
-| Twitch authentication
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Twitch authentication
+ * ========================================================================== */
 
 async function getTwitchAccessToken() {
   const clientId = process.env.TWITCH_CLIENT_ID;
@@ -110,11 +104,9 @@ async function getTwitchAccessToken() {
   return twitchAccessToken;
 }
 
-/*
-|--------------------------------------------------------------------------
-| Extract Twitch username
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Twitch username
+ * ========================================================================== */
 
 function getTwitchUsername(value) {
   const input = String(value || '').trim();
@@ -151,11 +143,9 @@ function getTwitchUsername(value) {
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Twitch live check
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Twitch live check
+ * ========================================================================== */
 
 async function checkTwitch(value) {
   const clientId =
@@ -232,11 +222,9 @@ async function checkTwitch(value) {
   };
 }
 
-/*
-|--------------------------------------------------------------------------
-| Extract YouTube channel information
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * YouTube channel parsing
+ * ========================================================================== */
 
 function parseYouTubeLink(value) {
   const input =
@@ -299,11 +287,9 @@ function parseYouTubeLink(value) {
   };
 }
 
-/*
-|--------------------------------------------------------------------------
-| Resolve YouTube channel ID
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Resolve YouTube channel ID
+ * ========================================================================== */
 
 async function resolveYouTubeChannelId(
   value
@@ -362,11 +348,9 @@ async function resolveYouTubeChannelId(
   );
 }
 
-/*
-|--------------------------------------------------------------------------
-| YouTube live check
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * YouTube live check
+ * ========================================================================== */
 
 async function checkYouTube(value) {
   const apiKey =
@@ -463,11 +447,9 @@ async function checkYouTube(value) {
   };
 }
 
-/*
-|--------------------------------------------------------------------------
-| TikTok username
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * TikTok username
+ * ========================================================================== */
 
 function getTikTokUsername(value) {
   const input =
@@ -487,16 +469,12 @@ function getTikTokUsername(value) {
     .trim();
 }
 
-/*
-|--------------------------------------------------------------------------
-| TikTok live check
-|--------------------------------------------------------------------------
-|
-| TikTok doesn't provide the same simple public live endpoint
-| that Twitch does, so this uses the creator page.
-|
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * TikTok LIVE check
+ *
+ * TikTok does not provide the same simple public LIVE endpoint as Twitch.
+ * This checks the creator's public page for LIVE state indicators.
+ * ========================================================================== */
 
 async function checkTikTok(value) {
   const username =
@@ -633,11 +611,9 @@ async function checkTikTok(value) {
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Check platform
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Check platform
+ * ========================================================================== */
 
 async function checkChannel(feed) {
   const platform =
@@ -645,12 +621,6 @@ async function checkChannel(feed) {
       feed.platform || ''
     ).toLowerCase();
 
-  /*
-   * New system uses link.
-   *
-   * identifier is kept as a fallback for
-   * old configurations.
-   */
   const source =
     feed.link ||
     feed.identifier;
@@ -682,11 +652,9 @@ async function checkChannel(feed) {
   };
 }
 
-/*
-|--------------------------------------------------------------------------
-| Platform name
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Platform name
+ * ========================================================================== */
 
 function getPlatformName(
   platform
@@ -709,21 +677,15 @@ function getPlatformName(
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Resolve Discord creator
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Resolve Discord creator
+ * ========================================================================== */
 
 async function resolveCreatorMember(
   guild,
   feed
 ) {
-  /*
-   * NEW:
-   * Use the Discord user selected in
-   * /social add.
-   */
+  // New system: Discord user selected in /social add.
   if (feed.discordUserId) {
     const member =
       guild.members.cache.get(
@@ -740,9 +702,7 @@ async function resolveCreatorMember(
     }
   }
 
-  /*
-   * Backwards compatibility.
-   */
+  // Backwards compatibility.
   const identifier =
     String(
       feed.identifier || ''
@@ -768,11 +728,7 @@ async function resolveCreatorMember(
     }
   }
 
-  /*
-   * Final fallback:
-   * Try custom feed name against
-   * usernames/display names.
-   */
+  // Final fallback using custom feed name.
   const target =
     String(
       feed.name || ''
@@ -801,11 +757,9 @@ async function resolveCreatorMember(
   );
 }
 
-/*
-|--------------------------------------------------------------------------
-| Add live role
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Add LIVE role
+ * ========================================================================== */
 
 async function addLiveRole(
   guild,
@@ -872,11 +826,9 @@ async function addLiveRole(
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Remove live role
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Remove LIVE role
+ * ========================================================================== */
 
 async function removeLiveRole(
   guild,
@@ -935,23 +887,15 @@ async function removeLiveRole(
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Send live notification
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Send LIVE notification
+ * ========================================================================== */
 
 async function sendLiveNotification(
   guild,
   feed,
   liveData
 ) {
-  /*
-   * IMPORTANT:
-   *
-   * Each social feed now has its OWN
-   * live notification channel.
-   */
   const notificationChannelId =
     feed.liveChannelId;
 
@@ -1088,11 +1032,9 @@ async function sendLiveNotification(
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Check one guild
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Check one guild
+ * ========================================================================== */
 
 async function checkGuild(
   client,
@@ -1125,11 +1067,7 @@ async function checkGuild(
       const feed of feeds
     ) {
       try {
-        /*
-         * POSTS ONLY:
-         *
-         * Don't run live API requests.
-         */
+        // Posts-only feeds don't need live checking.
         if (
           feed.notificationType ===
           'posts'
@@ -1152,12 +1090,7 @@ async function checkGuild(
             liveData.live
           );
 
-        /*
-         * ---------------------------------------------------------------
-         * OFFLINE -> LIVE
-         * ---------------------------------------------------------------
-         */
-
+        // OFFLINE -> LIVE
         if (
           !wasLive &&
           isLive
@@ -1166,18 +1099,11 @@ async function checkGuild(
             `[Social Feed] ${feed.name} (${getPlatformName(feed.platform)}) went LIVE.`
           );
 
-          /*
-           * Add the global live role.
-           */
           await addLiveRole(
             guild,
             feed
           );
 
-          /*
-           * Send notification to this feed's
-           * configured live channel.
-           */
           await sendLiveNotification(
             guild,
             feed,
@@ -1185,12 +1111,7 @@ async function checkGuild(
           );
         }
 
-        /*
-         * ---------------------------------------------------------------
-         * LIVE -> OFFLINE
-         * ---------------------------------------------------------------
-         */
-
+        // LIVE -> OFFLINE
         if (
           wasLive &&
           !isLive
@@ -1205,12 +1126,7 @@ async function checkGuild(
           );
         }
 
-        /*
-         * ---------------------------------------------------------------
-         * Save state
-         * ---------------------------------------------------------------
-         */
-
+        // Save state only when it changes.
         if (
           wasLive !== isLive
         ) {
@@ -1235,11 +1151,9 @@ async function checkGuild(
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Run live check once
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Run live check once
+ * ========================================================================== */
 
 export async function runSocialLiveCheck(
   client
@@ -1259,11 +1173,9 @@ export async function runSocialLiveCheck(
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Start monitor
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Start monitor
+ * ========================================================================== */
 
 export function startSocialLiveMonitor(
   client
@@ -1279,9 +1191,7 @@ export function startSocialLiveMonitor(
     '[Social Feed] Live monitor started.'
   );
 
-  /*
-   * Initial check.
-   */
+  // Initial check.
   runSocialLiveCheck(
     client
   ).catch(error => {
@@ -1291,9 +1201,7 @@ export function startSocialLiveMonitor(
     );
   });
 
-  /*
-   * Check every minute.
-   */
+  // Check every minute.
   monitorTimer =
     setInterval(
       () => {
@@ -1310,11 +1218,9 @@ export function startSocialLiveMonitor(
     );
 }
 
-/*
-|--------------------------------------------------------------------------
-| Stop monitor
-|--------------------------------------------------------------------------
-*/
+/* ============================================================================
+ * Stop monitor
+ * ========================================================================== */
 
 export function stopSocialLiveMonitor() {
   if (monitorTimer) {
