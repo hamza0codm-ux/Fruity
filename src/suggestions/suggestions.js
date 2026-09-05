@@ -23,7 +23,6 @@ import { logger } from '../utils/logger.js';
 
 export const SUGGESTION_CONFIG = {
     panelChannelId: '1545071209429999736',
-
     adminChannelId: '1545354349574758450',
 
     panelImageUrl: '',
@@ -444,7 +443,7 @@ export function buildAdminSuggestionEmbed(
 
 
     /*
-     * Reviewed By
+     * REVIEWED BY
      */
 
     if (suggestion.reviewedBy) {
@@ -460,7 +459,7 @@ export function buildAdminSuggestionEmbed(
 
 
     /*
-     * Reviewed At
+     * REVIEWED AT
      */
 
     if (suggestion.reviewedAt) {
@@ -550,19 +549,17 @@ export function buildAdminSuggestionButtons(
 | PANEL COMPARISON
 |--------------------------------------------------------------------------
 |
-| Discord marks a message as "(edited)" whenever .edit() is called.
+| Discord shows "(edited)" whenever .edit() is called.
 |
-| Bot restart + same panel:
-|     -> NO EDIT
+| We MUST NOT call .edit() when the public panel
+| is already identical.
 |
-| Bot restart + changed panel:
-|     -> EDIT
-|
-| Panel missing:
-|     -> CREATE
-|
+| Discord may return additional properties after a
+| restart, so we only compare properties controlled
+| by this bot.
 |--------------------------------------------------------------------------
 */
+
 
 function normalizeEmoji(emoji) {
     if (!emoji) {
@@ -572,10 +569,18 @@ function normalizeEmoji(emoji) {
     return {
         id: emoji.id ?? null,
         name: emoji.name ?? null,
-        animated: Boolean(emoji.animated),
+        animated: Boolean(
+            emoji.animated
+        ),
     };
 }
 
+
+/*
+|--------------------------------------------------------------------------
+| NORMALIZE EMBED
+|--------------------------------------------------------------------------
+*/
 
 function normalizeEmbed(embed) {
     if (!embed) {
@@ -587,8 +592,10 @@ function normalizeEmbed(embed) {
             ? embed.toJSON()
             : embed;
 
+
     return {
-        title: data.title ?? null,
+        title:
+            data.title ?? null,
 
         description:
             data.description ?? null,
@@ -599,44 +606,50 @@ function normalizeEmbed(embed) {
         url:
             data.url ?? null,
 
-        image: data.image?.url
-            ? {
-                url: data.image.url,
-            }
-            : null,
+        image:
+            data.image?.url
+                ? {
+                    url:
+                        data.image.url,
+                }
+                : null,
 
-        thumbnail: data.thumbnail?.url
-            ? {
-                url: data.thumbnail.url,
-            }
-            : null,
+        thumbnail:
+            data.thumbnail?.url
+                ? {
+                    url:
+                        data.thumbnail.url,
+                }
+                : null,
 
-        footer: data.footer
-            ? {
-                text:
-                    data.footer.text ?? null,
+        footer:
+            data.footer
+                ? {
+                    text:
+                        data.footer.text ?? null,
 
-                icon_url:
-                    data.footer.icon_url ?? null,
-            }
-            : null,
+                    icon_url:
+                        data.footer.icon_url ?? null,
+                }
+                : null,
 
-        author: data.author
-            ? {
-                name:
-                    data.author.name ?? null,
+        author:
+            data.author
+                ? {
+                    name:
+                        data.author.name ?? null,
 
-                url:
-                    data.author.url ?? null,
+                    url:
+                        data.author.url ?? null,
 
-                icon_url:
-                    data.author.icon_url ?? null,
-            }
-            : null,
+                    icon_url:
+                        data.author.icon_url ?? null,
+                }
+                : null,
 
         fields:
-            (data.fields ?? []).map(
-                field => ({
+            (data.fields ?? [])
+                .map(field => ({
                     name:
                         field.name ?? null,
 
@@ -644,14 +657,23 @@ function normalizeEmbed(embed) {
                         field.value ?? null,
 
                     inline:
-                        Boolean(field.inline),
-                })
-            ),
+                        Boolean(
+                            field.inline
+                        ),
+                })),
     };
 }
 
 
-function normalizeComponent(component) {
+/*
+|--------------------------------------------------------------------------
+| NORMALIZE COMPONENT
+|--------------------------------------------------------------------------
+*/
+
+function normalizeComponent(
+    component
+) {
     if (!component) {
         return null;
     }
@@ -660,6 +682,7 @@ function normalizeComponent(component) {
         typeof component.toJSON === 'function'
             ? component.toJSON()
             : component;
+
 
     return {
         type:
@@ -675,7 +698,9 @@ function normalizeComponent(component) {
             data.label ?? null,
 
         disabled:
-            Boolean(data.disabled),
+            Boolean(
+                data.disabled
+            ),
 
         emoji:
             normalizeEmoji(
@@ -691,7 +716,15 @@ function normalizeComponent(component) {
 }
 
 
-function normalizePanel(messageOrPayload) {
+/*
+|--------------------------------------------------------------------------
+| NORMALIZE PANEL
+|--------------------------------------------------------------------------
+*/
+
+function normalizePanel(
+    messageOrPayload
+) {
     return {
         content:
             messageOrPayload.content ?? null,
@@ -703,47 +736,74 @@ function normalizePanel(messageOrPayload) {
         components:
             (messageOrPayload.components ?? [])
                 .map(row => {
+
                     const rowData =
                         typeof row.toJSON === 'function'
                             ? row.toJSON()
                             : row;
+
 
                     return {
                         type:
                             rowData.type ?? null,
 
                         components:
-                            (rowData.components ?? [])
-                                .map(
-                                    normalizeComponent
-                                ),
+                            (
+                                rowData.components ?? []
+                            ).map(
+                                normalizeComponent
+                            ),
                     };
                 }),
     };
 }
 
 
+/*
+|--------------------------------------------------------------------------
+| STABLE PANEL FINGERPRINT
+|--------------------------------------------------------------------------
+|
+| Instead of comparing Discord objects directly,
+| create a clean JSON fingerprint containing only
+| the properties that matter to our panel.
+|
+|--------------------------------------------------------------------------
+*/
+
+function getPanelFingerprint(
+    panel
+) {
+    return JSON.stringify(
+        normalizePanel(panel)
+    );
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| CHECK IF PANELS ARE IDENTICAL
+|--------------------------------------------------------------------------
+*/
+
 function panelsAreEqual(
     existingMessage,
     desiredPayload
 ) {
-    const existingPanel =
-        normalizePanel(
+    const existingFingerprint =
+        getPanelFingerprint(
             existingMessage
         );
 
-    const desiredPanel =
-        normalizePanel(
+    const desiredFingerprint =
+        getPanelFingerprint(
             desiredPayload
         );
 
+
     return (
-        JSON.stringify(
-            existingPanel
-        ) ===
-        JSON.stringify(
-            desiredPanel
-        )
+        existingFingerprint ===
+        desiredFingerprint
     );
 }
 
@@ -761,6 +821,10 @@ export async function reconcileSuggestionPanel(
         SUGGESTION_CONFIG.panelChannelId;
 
 
+    /*
+     * CHANNEL ID CHECK
+     */
+
     if (
         !channelId ||
         channelId ===
@@ -775,6 +839,11 @@ export async function reconcileSuggestionPanel(
 
 
     try {
+
+        /*
+         * FETCH CHANNEL
+         */
+
         const channel =
             await client.channels.fetch(
                 channelId
@@ -793,9 +862,17 @@ export async function reconcileSuggestionPanel(
         }
 
 
+        /*
+         * BUILD THE DESIRED PANEL
+         */
+
         const payload =
             buildSuggestionPanel();
 
+
+        /*
+         * FETCH RECENT MESSAGES
+         */
 
         const messages =
             await channel.messages.fetch({
@@ -804,12 +881,17 @@ export async function reconcileSuggestionPanel(
 
 
         /*
-         * Find existing public suggestion panel.
+         * FIND THE EXISTING PUBLIC
+         * SUGGESTION PANEL
          */
 
         const existing =
             messages.find(
                 message => {
+
+                    /*
+                     * Only our bot messages.
+                     */
 
                     if (
                         message.author?.id !==
@@ -818,6 +900,11 @@ export async function reconcileSuggestionPanel(
                         return false;
                     }
 
+
+                    /*
+                     * Identify the suggestion
+                     * panel using the Submit button.
+                     */
 
                     return message.components?.some(
                         row =>
@@ -832,10 +919,15 @@ export async function reconcileSuggestionPanel(
 
 
         /*
-         * Existing panel found.
+         * EXISTING PANEL FOUND
          */
 
         if (existing) {
+
+            /*
+             * Compare the actual panel
+             * against what we want.
+             */
 
             const panelChanged =
                 !panelsAreEqual(
@@ -845,9 +937,12 @@ export async function reconcileSuggestionPanel(
 
 
             /*
-             * NOTHING CHANGED.
+             * NOTHING CHANGED
              *
-             * NEVER call .edit().
+             * DO NOT CALL .edit()
+             *
+             * This is what prevents the
+             * "(edited)" marker on restart.
              */
 
             if (!panelChanged) {
@@ -861,30 +956,29 @@ export async function reconcileSuggestionPanel(
 
 
             /*
-             * SOMETHING CHANGED.
+             * SOMETHING ACTUALLY CHANGED
              *
-             * Only now edit the message.
+             * Now edit the message.
              */
-
-            logger.info(
-                `Suggestions panel changed in #${channel.name}; updating panel.`
-            );
 
             await existing.edit(
                 payload
             );
 
+
             logger.info(
-                `Suggestions panel updated in #${channel.name}.`
+                `Suggestions panel changed and was updated in #${channel.name}.`
             );
+
 
             return existing;
         }
 
 
         /*
-         * Panel doesn't exist.
-         * Create it.
+         * NO PANEL FOUND
+         *
+         * CREATE ONE.
          */
 
         const message =
