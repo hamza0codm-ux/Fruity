@@ -552,6 +552,73 @@ export function buildAdminSuggestionButtons(
 
 /*
 |--------------------------------------------------------------------------
+| PANEL COMPARISON
+|--------------------------------------------------------------------------
+|
+| Discord will mark a message as "(edited)" whenever .edit() is called.
+| We therefore compare the current panel with the desired panel first.
+|
+| This means:
+|
+|   Bot restart + nothing changed  -> NO EDIT
+|   Bot restart + panel changed    -> EDIT
+|   Panel doesn't exist            -> CREATE
+|
+|--------------------------------------------------------------------------
+*/
+
+function normalizePanelForComparison(data) {
+    if (!data) {
+        return null;
+    }
+
+    return {
+        content: data.content ?? null,
+
+        embeds: (data.embeds ?? []).map(embed => {
+            if (typeof embed?.toJSON === 'function') {
+                return embed.toJSON();
+            }
+
+            return embed;
+        }),
+
+        components: (data.components ?? []).map(row => {
+            if (typeof row?.toJSON === 'function') {
+                return row.toJSON();
+            }
+
+            return row;
+        }),
+    };
+}
+
+
+function panelsAreEqual(existingMessage, desiredPayload) {
+    const existingPanel = {
+        content: existingMessage.content ?? null,
+
+        embeds: (existingMessage.embeds ?? []).map(
+            embed => embed.toJSON()
+        ),
+
+        components: (existingMessage.components ?? []).map(
+            row => row.toJSON()
+        ),
+    };
+
+    const desiredPanel =
+        normalizePanelForComparison(
+            desiredPayload
+        );
+
+    return JSON.stringify(existingPanel) ===
+        JSON.stringify(desiredPanel);
+}
+
+
+/*
+|--------------------------------------------------------------------------
 | AUTO CREATE / UPDATE PANEL
 |--------------------------------------------------------------------------
 */
@@ -634,16 +701,34 @@ export async function reconcileSuggestionPanel(
 
 
         /*
-         * UPDATE EXISTING PANEL
+         * UPDATE EXISTING PANEL ONLY
+         * IF SOMETHING ACTUALLY CHANGED.
          */
 
         if (existing) {
+
+            const changed =
+                !panelsAreEqual(
+                    existing,
+                    payload
+                );
+
+
+            if (!changed) {
+                logger.info(
+                    `Suggestions panel unchanged in #${channel.name}; no edit needed.`
+                );
+
+                return existing;
+            }
+
+
             await existing.edit(
                 payload
             );
 
             logger.info(
-                `Suggestions panel updated in #${channel.name}.`
+                `Suggestions panel changed and was updated in #${channel.name}.`
             );
 
             return existing;
@@ -676,3 +761,4 @@ export async function reconcileSuggestionPanel(
         return null;
     }
 }
+
