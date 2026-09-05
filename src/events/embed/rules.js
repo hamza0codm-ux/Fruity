@@ -127,7 +127,7 @@ async function setupRules(client) {
             }
 
             return message.embeds?.some(
-                embed => embed.title === '<:white_rules:1544646747186274344> Fruity Rules'
+                embed => embed.title === '📜 Fruity Rules'
             );
         });
 
