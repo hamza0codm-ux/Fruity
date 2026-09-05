@@ -1,25 +1,62 @@
 import { readdir } from 'fs/promises';
 import { join } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname } from 'path';
 import { logger } from '../../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+/**
+ * Recursively find all JavaScript event files.
+ */
+async function getEventFiles(directory) {
+    const entries = await readdir(directory, { withFileTypes: true });
+    const files = [];
+
+    for (const entry of entries) {
+        const fullPath = join(directory, entry.name);
+
+        if (entry.isDirectory()) {
+            const nestedFiles = await getEventFiles(fullPath);
+            files.push(...nestedFiles);
+        } else if (entry.isFile() && entry.name.endsWith('.js')) {
+            files.push(fullPath);
+        }
+    }
+
+    return files;
+}
+
 export default async function loadEvents(client) {
     const eventsPath = join(__dirname, '../../events');
-    const eventFiles = await readdir(eventsPath).then(files => files.filter(file => file.endsWith('.js')));
 
-   logger.info(`🔥 EVENT LOADER: Found ${eventFiles.length} event files`);
+    let eventFiles;
 
-    for (const file of eventFiles) {
-        const filePath = join(eventsPath, file);
+    try {
+        eventFiles = await getEventFiles(eventsPath);
+    } catch (error) {
+        logger.error('❌ Failed to scan events directory:', error);
+        return;
+    }
+
+    logger.info(`🔥 EVENT LOADER: Found ${eventFiles.length} event files`);
+
+    for (const filePath of eventFiles) {
+        const relativeFile = filePath
+            .replace(eventsPath, '')
+            .replace(/\\/g, '/')
+            .replace(/^\/+/, '');
+
         try {
-            const { default: event } = await import(`file://${filePath}`);
+            const { default: event } = await import(
+                pathToFileURL(filePath).href
+            );
 
             if (!event?.name || typeof event.execute !== 'function') {
-                logger.warn(`Event ${file} is missing required "name" or "execute" properties.`);
+                logger.warn(
+                    `⚠️ Event ${relativeFile} is missing required "name" or "execute" properties.`
+                );
                 continue;
             }
 
@@ -27,19 +64,31 @@ export default async function loadEvents(client) {
                 try {
                     await event.execute(...args, client);
                 } catch (error) {
-                    logger.error(`Error executing event ${event.name}:`, error);
+                    logger.error(
+                        `❌ Error executing event ${event.name}:`,
+                        error
+                    );
                 }
             };
 
             if (event.once) {
                 client.once(event.name, safeExecute);
-                logger.info(`✅ Registered once event: ${event.name}`);
+
+                logger.info(
+                    `✅ Registered once event: ${event.name} (${relativeFile})`
+                );
             } else {
                 client.on(event.name, safeExecute);
-             logger.info(`🔥 EVENT REGISTERED: ${event.name}`);
+
+                logger.info(
+                    `🔥 EVENT REGISTERED: ${event.name} (${relativeFile})`
+                );
             }
         } catch (error) {
-            logger.error(`Error loading event ${file}:`, error);
+            logger.error(
+                `❌ Error loading event ${relativeFile}:`,
+                error
+            );
         }
     }
 }
