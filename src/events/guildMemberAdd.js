@@ -173,7 +173,7 @@ export default {
                             'https://discord.com/channels/1541083989786370080/1543030791599300759',
                             'https://discord.com/channels/1541083989786370080/1541551382958579782',
                             '',
-                            'Hope you enjoy your stay here ❤️',
+                            'Hope you enjoy your stay here U+2764',
                         ].join('\n');
 
 
