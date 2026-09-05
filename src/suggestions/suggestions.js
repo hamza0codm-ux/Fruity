@@ -479,11 +479,6 @@ export function buildAdminSuggestionEmbed(
     }
 
 
-    /*
-     * IMPORTANT:
-     * Close buildAdminSuggestionEmbed()
-     */
-
     return embed;
 }
 
@@ -556,9 +551,6 @@ export function buildAdminSuggestionButtons(
 |--------------------------------------------------------------------------
 |
 | Discord marks a message as "(edited)" whenever .edit() is called.
-|
-| We therefore normalize the existing Discord message and the desired
-| panel into only the properties that actually matter.
 |
 | Bot restart + same panel:
 |     -> NO EDIT
@@ -840,8 +832,7 @@ export async function reconcileSuggestionPanel(
 
 
         /*
-         * UPDATE EXISTING PANEL ONLY
-         * IF SOMETHING ACTUALLY CHANGED.
+         * Existing panel found.
          */
 
         if (existing) {
@@ -856,12 +847,11 @@ export async function reconcileSuggestionPanel(
             /*
              * NOTHING CHANGED.
              *
-             * Do NOT call existing.edit().
-             * This prevents Discord from adding
-             * the "(edited)" marker after restarts.
+             * NEVER call .edit().
              */
 
             if (!panelChanged) {
+
                 logger.info(
                     `Suggestions panel unchanged in #${channel.name}; no edit needed.`
                 );
@@ -873,15 +863,19 @@ export async function reconcileSuggestionPanel(
             /*
              * SOMETHING CHANGED.
              *
-             * Now we actually edit the message.
+             * Only now edit the message.
              */
+
+            logger.info(
+                `Suggestions panel changed in #${channel.name}; updating panel.`
+            );
 
             await existing.edit(
                 payload
             );
 
             logger.info(
-                `Suggestions panel changed and was updated in #${channel.name}.`
+                `Suggestions panel updated in #${channel.name}.`
             );
 
             return existing;
@@ -889,7 +883,8 @@ export async function reconcileSuggestionPanel(
 
 
         /*
-         * CREATE NEW PANEL
+         * Panel doesn't exist.
+         * Create it.
          */
 
         const message =
@@ -906,6 +901,7 @@ export async function reconcileSuggestionPanel(
         return message;
 
     } catch (error) {
+
         logger.error(
             'Suggestions: failed to reconcile panel:',
             error
