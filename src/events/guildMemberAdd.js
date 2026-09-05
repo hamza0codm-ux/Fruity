@@ -187,7 +187,7 @@ export default {
                             new EmbedBuilder()
                                 .setColor(0xF8D568)
                                 .setTitle(
-                                    '👋 Welcome to Fruity!'
+                                    '<a:wavey:1042742523837292576> Welcome to Fruity!'
                                 )
                                 .setDescription(
                                     description
