@@ -165,7 +165,7 @@ export default {
                         */
 
                         const description = [
-                            `We’re so excited to have you join us, make sure to check out all the essential channels to get the full experience!`,
+                            `👋 We’re so excited to have you join us, make sure to check out all the essential channels to get the full experience!`,
                             '',
                             'https://discord.com/channels/1541083989786370080/1541550498925256744',
                             'https://discord.com/channels/1541083989786370080/1545439852487778455',
