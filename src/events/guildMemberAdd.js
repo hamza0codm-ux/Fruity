@@ -187,7 +187,7 @@ export default {
                             new EmbedBuilder()
                                 .setColor(0xF8D568)
                                 .setTitle(
-                                    '👋 Welcome to Fruity!'
+                                    ' 👋 Welcome to Fruity!'
                                 )
                                 .setDescription(
                                     description
