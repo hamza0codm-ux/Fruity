@@ -479,6 +479,11 @@ export function buildAdminSuggestionEmbed(
     }
 
 
+    /*
+     * IMPORTANT:
+     * Close buildAdminSuggestionEmbed()
+     */
+
     return embed;
 }
 
@@ -552,7 +557,8 @@ export function buildAdminSuggestionButtons(
 |
 | Discord marks a message as "(edited)" whenever .edit() is called.
 |
-| We therefore compare the actual panel contents before editing.
+| We therefore normalize the existing Discord message and the desired
+| panel into only the properties that actually matter.
 |
 | Bot restart + same panel:
 |     -> NO EDIT
@@ -834,8 +840,8 @@ export async function reconcileSuggestionPanel(
 
 
         /*
-         * UPDATE EXISTING PANEL
-         * ONLY IF SOMETHING ACTUALLY CHANGED.
+         * UPDATE EXISTING PANEL ONLY
+         * IF SOMETHING ACTUALLY CHANGED.
          */
 
         if (existing) {
@@ -850,7 +856,9 @@ export async function reconcileSuggestionPanel(
             /*
              * NOTHING CHANGED.
              *
-             * DO NOT CALL .edit().
+             * Do NOT call existing.edit().
+             * This prevents Discord from adding
+             * the "(edited)" marker after restarts.
              */
 
             if (!panelChanged) {
@@ -865,7 +873,7 @@ export async function reconcileSuggestionPanel(
             /*
              * SOMETHING CHANGED.
              *
-             * NOW EDIT THE PANEL.
+             * Now we actually edit the message.
              */
 
             await existing.edit(
@@ -889,6 +897,7 @@ export async function reconcileSuggestionPanel(
                 payload
             );
 
+
         logger.info(
             `Suggestions panel created in #${channel.name}.`
         );
@@ -897,7 +906,6 @@ export async function reconcileSuggestionPanel(
         return message;
 
     } catch (error) {
-
         logger.error(
             'Suggestions: failed to reconcile panel:',
             error
