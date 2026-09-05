@@ -555,65 +555,204 @@ export function buildAdminSuggestionButtons(
 | PANEL COMPARISON
 |--------------------------------------------------------------------------
 |
-| Discord will mark a message as "(edited)" whenever .edit() is called.
-| We therefore compare the current panel with the desired panel first.
+| Discord marks a message as "(edited)" whenever .edit() is called.
 |
-| This means:
+| We therefore normalize the existing Discord message and the desired
+| panel into only the properties that actually matter.
 |
-|   Bot restart + nothing changed  -> NO EDIT
-|   Bot restart + panel changed    -> EDIT
-|   Panel doesn't exist            -> CREATE
+| Bot restart + same panel:
+|     -> NO EDIT
+|
+| Bot restart + changed panel:
+|     -> EDIT
+|
+| Panel missing:
+|     -> CREATE
 |
 |--------------------------------------------------------------------------
 */
 
-function normalizePanelForComparison(data) {
-    if (!data) {
+function normalizeEmoji(emoji) {
+    if (!emoji) {
         return null;
     }
 
     return {
-        content: data.content ?? null,
-
-        embeds: (data.embeds ?? []).map(embed => {
-            if (typeof embed?.toJSON === 'function') {
-                return embed.toJSON();
-            }
-
-            return embed;
-        }),
-
-        components: (data.components ?? []).map(row => {
-            if (typeof row?.toJSON === 'function') {
-                return row.toJSON();
-            }
-
-            return row;
-        }),
+        id: emoji.id ?? null,
+        name: emoji.name ?? null,
+        animated: Boolean(emoji.animated),
     };
 }
 
 
-function panelsAreEqual(existingMessage, desiredPayload) {
-    const existingPanel = {
-        content: existingMessage.content ?? null,
+function normalizeEmbed(embed) {
+    if (!embed) {
+        return null;
+    }
 
-        embeds: (existingMessage.embeds ?? []).map(
-            embed => embed.toJSON()
-        ),
+    const data =
+        typeof embed.toJSON === 'function'
+            ? embed.toJSON()
+            : embed;
 
-        components: (existingMessage.components ?? []).map(
-            row => row.toJSON()
-        ),
+    return {
+        title: data.title ?? null,
+
+        description:
+            data.description ?? null,
+
+        color:
+            data.color ?? null,
+
+        url:
+            data.url ?? null,
+
+        image: data.image?.url
+            ? {
+                url: data.image.url,
+            }
+            : null,
+
+        thumbnail: data.thumbnail?.url
+            ? {
+                url: data.thumbnail.url,
+            }
+            : null,
+
+        footer: data.footer
+            ? {
+                text:
+                    data.footer.text ?? null,
+
+                icon_url:
+                    data.footer.icon_url ?? null,
+            }
+            : null,
+
+        author: data.author
+            ? {
+                name:
+                    data.author.name ?? null,
+
+                url:
+                    data.author.url ?? null,
+
+                icon_url:
+                    data.author.icon_url ?? null,
+            }
+            : null,
+
+        fields:
+            (data.fields ?? []).map(
+                field => ({
+                    name:
+                        field.name ?? null,
+
+                    value:
+                        field.value ?? null,
+
+                    inline:
+                        Boolean(field.inline),
+                })
+            ),
     };
+}
+
+
+function normalizeComponent(component) {
+    if (!component) {
+        return null;
+    }
+
+    const data =
+        typeof component.toJSON === 'function'
+            ? component.toJSON()
+            : component;
+
+    return {
+        type:
+            data.type ?? null,
+
+        custom_id:
+            data.custom_id ?? null,
+
+        style:
+            data.style ?? null,
+
+        label:
+            data.label ?? null,
+
+        disabled:
+            Boolean(data.disabled),
+
+        emoji:
+            normalizeEmoji(
+                data.emoji
+            ),
+
+        url:
+            data.url ?? null,
+
+        sku_id:
+            data.sku_id ?? null,
+    };
+}
+
+
+function normalizePanel(messageOrPayload) {
+    return {
+        content:
+            messageOrPayload.content ?? null,
+
+        embeds:
+            (messageOrPayload.embeds ?? [])
+                .map(normalizeEmbed),
+
+        components:
+            (messageOrPayload.components ?? [])
+                .map(row => {
+                    const rowData =
+                        typeof row.toJSON === 'function'
+                            ? row.toJSON()
+                            : row;
+
+                    return {
+                        type:
+                            rowData.type ?? null,
+
+                        components:
+                            (rowData.components ?? [])
+                                .map(
+                                    normalizeComponent
+                                ),
+                    };
+                }),
+    };
+}
+
+
+function panelsAreEqual(
+    existingMessage,
+    desiredPayload
+) {
+    const existingPanel =
+        normalizePanel(
+            existingMessage
+        );
 
     const desiredPanel =
-        normalizePanelForComparison(
+        normalizePanel(
             desiredPayload
         );
 
-    return JSON.stringify(existingPanel) ===
-        JSON.stringify(desiredPanel);
+    return (
+        JSON.stringify(
+            existingPanel
+        ) ===
+        JSON.stringify(
+            desiredPanel
+        )
+    );
 }
 
 
@@ -707,14 +846,22 @@ export async function reconcileSuggestionPanel(
 
         if (existing) {
 
-            const changed =
+            const panelChanged =
                 !panelsAreEqual(
                     existing,
                     payload
                 );
 
 
-            if (!changed) {
+            /*
+             * NOTHING CHANGED.
+             *
+             * Do NOT call existing.edit().
+             * This prevents Discord from adding
+             * the "(edited)" marker after restarts.
+             */
+
+            if (!panelChanged) {
                 logger.info(
                     `Suggestions panel unchanged in #${channel.name}; no edit needed.`
                 );
@@ -722,6 +869,12 @@ export async function reconcileSuggestionPanel(
                 return existing;
             }
 
+
+            /*
+             * SOMETHING CHANGED.
+             *
+             * Now we actually edit the message.
+             */
 
             await existing.edit(
                 payload
@@ -761,4 +914,3 @@ export async function reconcileSuggestionPanel(
         return null;
     }
 }
-
