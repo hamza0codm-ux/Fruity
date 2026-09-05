@@ -722,8 +722,8 @@ function normalizePanel(
 ) {
     return {
         content:
-            messageOrPayload.content ?? null,
-
+    messageOrPayload.content || null,
+        
         embeds:
             (messageOrPayload.embeds ?? [])
                 .map(normalizeEmbed),
