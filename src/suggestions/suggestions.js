@@ -549,14 +549,19 @@ export function buildAdminSuggestionButtons(
 | PANEL COMPARISON
 |--------------------------------------------------------------------------
 |
-| Discord shows "(edited)" whenever .edit() is called.
+| Discord can return extra/default properties on components and embeds.
 |
-| We MUST NOT call .edit() when the public panel
-| is already identical.
+| We only compare properties that are actually controlled by this bot.
 |
-| Discord may return additional properties after a
-| restart, so we only compare properties controlled
-| by this bot.
+| Same panel:
+|     -> NO EDIT
+|
+| Changed panel:
+|     -> EDIT
+|
+| Missing panel:
+|     -> CREATE
+|
 |--------------------------------------------------------------------------
 */
 
@@ -575,12 +580,6 @@ function normalizeEmoji(emoji) {
     };
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| NORMALIZE EMBED
-|--------------------------------------------------------------------------
-*/
 
 function normalizeEmbed(embed) {
     if (!embed) {
@@ -629,7 +628,9 @@ function normalizeEmbed(embed) {
                         data.footer.text ?? null,
 
                     icon_url:
-                        data.footer.icon_url ?? null,
+                        data.footer.icon_url ??
+                        data.footer.iconURL ??
+                        null,
                 }
                 : null,
 
@@ -643,7 +644,9 @@ function normalizeEmbed(embed) {
                         data.author.url ?? null,
 
                     icon_url:
-                        data.author.icon_url ?? null,
+                        data.author.icon_url ??
+                        data.author.iconURL ??
+                        null,
                 }
                 : null,
 
@@ -665,12 +668,6 @@ function normalizeEmbed(embed) {
 }
 
 
-/*
-|--------------------------------------------------------------------------
-| NORMALIZE COMPONENT
-|--------------------------------------------------------------------------
-*/
-
 function normalizeComponent(
     component
 ) {
@@ -689,7 +686,9 @@ function normalizeComponent(
             data.type ?? null,
 
         custom_id:
-            data.custom_id ?? null,
+            data.custom_id ??
+            data.customId ??
+            null,
 
         style:
             data.style ?? null,
@@ -711,16 +710,12 @@ function normalizeComponent(
             data.url ?? null,
 
         sku_id:
-            data.sku_id ?? null,
+            data.sku_id ??
+            data.skuId ??
+            null,
     };
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| NORMALIZE PANEL
-|--------------------------------------------------------------------------
-*/
 
 function normalizePanel(
     messageOrPayload
@@ -762,12 +757,6 @@ function normalizePanel(
 /*
 |--------------------------------------------------------------------------
 | STABLE PANEL FINGERPRINT
-|--------------------------------------------------------------------------
-|
-| Instead of comparing Discord objects directly,
-| create a clean JSON fingerprint containing only
-| the properties that matter to our panel.
-|
 |--------------------------------------------------------------------------
 */
 
@@ -821,10 +810,6 @@ export async function reconcileSuggestionPanel(
         SUGGESTION_CONFIG.panelChannelId;
 
 
-    /*
-     * CHANNEL ID CHECK
-     */
-
     if (
         !channelId ||
         channelId ===
@@ -863,7 +848,7 @@ export async function reconcileSuggestionPanel(
 
 
         /*
-         * BUILD THE DESIRED PANEL
+         * BUILD DESIRED PANEL
          */
 
         const payload =
@@ -881,8 +866,7 @@ export async function reconcileSuggestionPanel(
 
 
         /*
-         * FIND THE EXISTING PUBLIC
-         * SUGGESTION PANEL
+         * FIND EXISTING PUBLIC PANEL
          */
 
         const existing =
@@ -890,7 +874,7 @@ export async function reconcileSuggestionPanel(
                 message => {
 
                     /*
-                     * Only our bot messages.
+                     * Only our bot's messages.
                      */
 
                     if (
@@ -902,8 +886,8 @@ export async function reconcileSuggestionPanel(
 
 
                     /*
-                     * Identify the suggestion
-                     * panel using the Submit button.
+                     * Identify the panel by
+                     * its Submit button.
                      */
 
                     return message.components?.some(
@@ -919,14 +903,13 @@ export async function reconcileSuggestionPanel(
 
 
         /*
-         * EXISTING PANEL FOUND
+         * EXISTING PANEL
          */
 
         if (existing) {
 
             /*
-             * Compare the actual panel
-             * against what we want.
+             * Check whether it is actually different.
              */
 
             const panelChanged =
@@ -937,18 +920,19 @@ export async function reconcileSuggestionPanel(
 
 
             /*
-             * NOTHING CHANGED
+             * IMPORTANT:
              *
-             * DO NOT CALL .edit()
+             * If absolutely nothing changed,
+             * DO NOT call .edit().
              *
-             * This is what prevents the
-             * "(edited)" marker on restart.
+             * This prevents Discord from showing
+             * "(edited)" after every restart.
              */
 
             if (!panelChanged) {
 
                 logger.info(
-                    `Suggestions panel unchanged in #${channel.name}; no edit needed.`
+                    `Suggestions panel unchanged in #${channel.name}; skipping edit.`
                 );
 
                 return existing;
@@ -956,10 +940,15 @@ export async function reconcileSuggestionPanel(
 
 
             /*
-             * SOMETHING ACTUALLY CHANGED
+             * Something really changed.
              *
-             * Now edit the message.
+             * Update the panel.
              */
+
+            logger.info(
+                `Suggestions panel changed in #${channel.name}; updating.`
+            );
+
 
             await existing.edit(
                 payload
@@ -967,7 +956,7 @@ export async function reconcileSuggestionPanel(
 
 
             logger.info(
-                `Suggestions panel changed and was updated in #${channel.name}.`
+                `Suggestions panel updated in #${channel.name}.`
             );
 
 
@@ -976,9 +965,9 @@ export async function reconcileSuggestionPanel(
 
 
         /*
-         * NO PANEL FOUND
+         * PANEL DOES NOT EXIST
          *
-         * CREATE ONE.
+         * CREATE IT.
          */
 
         const message =
