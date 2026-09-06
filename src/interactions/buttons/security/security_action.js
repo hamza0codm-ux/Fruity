@@ -2,16 +2,12 @@ import {
     PermissionFlagsBits,
 } from 'discord.js';
 
-export async function handleSecurityAction(interaction) {
+async function handleSecurityAction(interaction) {
     if (!interaction.isButton()) {
         return false;
     }
 
-    if (
-        !interaction.customId.startsWith(
-            'security_',
-        )
-    ) {
+    if (!interaction.customId.startsWith('security_')) {
         return false;
     }
 
@@ -136,11 +132,22 @@ export async function handleSecurityAction(interaction) {
 
         return false;
     } catch (error) {
-        await interaction.reply({
-            content:
-                `❌ ${error.message || 'Action failed.'}`,
-            ephemeral: true,
-        });
+        if (
+            interaction.replied ||
+            interaction.deferred
+        ) {
+            await interaction.followUp({
+                content:
+                    `❌ ${error.message || 'Action failed.'}`,
+                ephemeral: true,
+            });
+        } else {
+            await interaction.reply({
+                content:
+                    `❌ ${error.message || 'Action failed.'}`,
+                ephemeral: true,
+            });
+        }
 
         return true;
     }
@@ -170,3 +177,8 @@ async function markHandled(
         components: [],
     });
 }
+
+export default {
+    name: 'security_action',
+    execute: handleSecurityAction,
+};
