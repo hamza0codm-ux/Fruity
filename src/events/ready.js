@@ -5,7 +5,7 @@ import {
   startupLog,
 } from "../utils/logger.js";
 
-import config from "../config/application.js";
+import { botConfig } from "../config/bot.js";
 
 import {
   reconcileTicketPanels,
