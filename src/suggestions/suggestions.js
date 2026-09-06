@@ -41,8 +41,8 @@ export const SUGGESTION_CONFIG = {
 
 export const SUGGESTION_EMOJIS = {
     submit: {
-        id: '1425715843211460628',
-        name: 'b_black',
+        id: '1546240756073893950',
+        name: 'suggestion',
         animated: true,
     },
 
