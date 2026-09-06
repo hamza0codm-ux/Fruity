@@ -5,7 +5,7 @@ export const botConfig = {
 // BOT PRESENCE
 // =========================
 presence: {
-  status: "idle",
+  status: "dnd",
 
   activities: [
     {
