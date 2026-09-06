@@ -1,21 +1,20 @@
 import { Events } from "discord.js";
 import { logger, startupLog } from "../utils/logger.js";
 import config from "../config/application.js";
-import { reconcileReactionRoleMessages } from "../services/reactionRoleService.js";
+
 import {
   reconcileTicketPanels,
-  reconcileVerificationPanels,
-  reconcileReactionRolePanelHealth,
 } from "../services/panelHealthService.js";
+
 import { reconcileLevelRoles } from "../services/leveling/levelRoleSyncService.js";
 import { initRiffyAfterReady } from "../services/music/riffySetup.js";
 
-// NEW — separate Normal Tickets panel
+// Normal Tickets panel
 import {
   reconcileNormalTicketPanel,
 } from "../tickets/normalTickets.js";
 
-// NEW — separate Merch Tickets panel
+// Merch Tickets panel
 import {
   reconcileMerchTicketPanel,
 } from "../tickets/merchTickets.js";
@@ -32,20 +31,16 @@ export default {
       startupLog(`Serving ${client.guilds.cache.size} guild(s)`);
       startupLog(`Loaded ${client.commands.size} commands`);
 
+      // =========================
+      // MUSIC
+      // =========================
       if (client.config?.features?.music) {
         initRiffyAfterReady(client);
       }
 
-      const reconciliationSummary =
-        await reconcileReactionRoleMessages(client);
-
-      startupLog(
-        `Reaction role reconciliation: scanned ${reconciliationSummary.scannedMessages}, removed ${reconciliationSummary.removedMessages}, errors ${reconciliationSummary.errors}`
-      );
-
-      /*
-       * EXISTING TICKET PANEL HEALTH
-       */
+      // =========================
+      // TICKET PANEL HEALTH
+      // =========================
       const ticketPanelSummary =
         await reconcileTicketPanels(client);
 
@@ -53,53 +48,27 @@ export default {
         `Ticket panel health: scanned ${ticketPanelSummary.scannedGuilds} guilds, healthy ${ticketPanelSummary.healthyPanels}, deleted ${ticketPanelSummary.deletedPanels}, missing channel ${ticketPanelSummary.missingChannels}, recovered ${ticketPanelSummary.recoveredIds}, errors ${ticketPanelSummary.errors}`
       );
 
-      /*
-       * NEW — NORMAL TICKETS PANEL
-       *
-       * Channel:
-       * 1541551721908801576
-       */
+      // =========================
+      // NORMAL TICKETS PANEL
+      // =========================
       await reconcileNormalTicketPanel(client);
 
       startupLog(
         "Normal Tickets panel reconciliation completed."
       );
 
-      /*
-       * NEW — MERCH TICKETS PANEL
-       *
-       * Channel:
-       * 1543031129559408660
-       */
+      // =========================
+      // MERCH TICKETS PANEL
+      // =========================
       await reconcileMerchTicketPanel(client);
 
       startupLog(
         "Merch Tickets panel reconciliation completed."
       );
 
-      /*
-       * VERIFICATION PANEL
-       */
-      const verificationPanelSummary =
-        await reconcileVerificationPanels(client);
-
-      startupLog(
-        `Verification panel health: scanned ${verificationPanelSummary.scannedGuilds} guilds, healthy ${verificationPanelSummary.healthyPanels}, deleted ${verificationPanelSummary.deletedPanels}, missing channel ${verificationPanelSummary.missingChannels}, recovered ${verificationPanelSummary.recoveredIds}, errors ${verificationPanelSummary.errors}`
-      );
-
-      /*
-       * REACTION ROLE PANEL HEALTH
-       */
-      const reactionRolePanelSummary =
-        await reconcileReactionRolePanelHealth(client);
-
-      startupLog(
-        `Reaction role panel health: scanned ${reactionRolePanelSummary.scannedPanels} panels, healthy ${reactionRolePanelSummary.healthyPanels}, deleted ${reactionRolePanelSummary.deletedPanels}, missing channel ${reactionRolePanelSummary.missingChannels}, recovered ${reactionRolePanelSummary.recoveredIds}, errors ${reactionRolePanelSummary.errors}`
-      );
-
-      /*
-       * LEVEL ROLES
-       */
+      // =========================
+      // LEVEL ROLES
+      // =========================
       const levelRoleSummary =
         await reconcileLevelRoles(client);
 
