@@ -9,9 +9,8 @@ presence: {
 
   activities: [
     {
-      name: "Custom Status",
-      state: "Fruity",
-      type: 4,
+      name: "Fruity",
+      type: 0, // 0 = Playing (use 1/2/3 for Streaming/Listening/Watching)
     },
   ],
 },
