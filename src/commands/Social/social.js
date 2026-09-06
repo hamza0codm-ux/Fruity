@@ -4,7 +4,6 @@ import {
   ActionRowBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
-  ChannelSelectMenuBuilder,
   ChannelType,
   MessageFlags,
   EmbedBuilder,
@@ -247,6 +246,7 @@ export default {
               'Add a customizable social media feed.'
             )
 
+            // REQUIRED OPTIONS FIRST
             .addStringOption(
               option =>
                 option
@@ -315,6 +315,17 @@ export default {
                   )
             )
 
+            .addUserOption(
+              option =>
+                option
+                  .setName('discord_user')
+                  .setDescription(
+                    'Discord user who owns this social account.'
+                  )
+                  .setRequired(true)
+            )
+
+            // OPTIONAL OPTIONS AFTER REQUIRED OPTIONS
             .addChannelOption(
               option =>
                 option
@@ -341,16 +352,6 @@ export default {
                     ChannelType.GuildAnnouncement
                   )
                   .setRequired(false)
-            )
-
-            .addUserOption(
-              option =>
-                option
-                  .setName('discord_user')
-                  .setDescription(
-                    'Discord user who owns this social account.'
-                  )
-                  .setRequired(true)
             )
 
             .addRoleOption(
