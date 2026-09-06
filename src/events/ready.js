@@ -1,20 +1,44 @@
 import { Events } from "discord.js";
-import { logger, startupLog } from "../utils/logger.js";
+
+import {
+  logger,
+  startupLog,
+} from "../utils/logger.js";
+
 import config from "../config/application.js";
 
 import {
   reconcileTicketPanels,
 } from "../services/panelHealthService.js";
 
-import { reconcileLevelRoles } from "../services/leveling/levelRoleSyncService.js";
-import { initRiffyAfterReady } from "../services/music/riffySetup.js";
+import {
+  reconcileLevelRoles,
+} from "../services/leveling/levelRoleSyncService.js";
 
-// Normal Tickets panel
+import {
+  initRiffyAfterReady,
+} from "../services/music/riffySetup.js";
+
+// ============================================================
+// SECURITY
+// ============================================================
+
+import {
+  registerSecurityEvents,
+} from "./securityEvents.js";
+
+// ============================================================
+// NORMAL TICKETS
+// ============================================================
+
 import {
   reconcileNormalTicketPanel,
 } from "../tickets/normalTickets.js";
 
-// Merch Tickets panel
+// ============================================================
+// MERCH TICKETS
+// ============================================================
+
 import {
   reconcileMerchTicketPanel,
 } from "../tickets/merchTickets.js";
@@ -25,22 +49,61 @@ export default {
 
   async execute(client) {
     try {
-      client.user.setPresence(config.bot.presence);
+      // ======================================================
+      // BOT PRESENCE
+      // ======================================================
 
-      startupLog(`Ready! Logged in as ${client.user.tag}`);
-      startupLog(`Serving ${client.guilds.cache.size} guild(s)`);
-      startupLog(`Loaded ${client.commands.size} commands`);
+      client.user.setPresence(
+        config.bot.presence
+      );
 
-      // =========================
+      // ======================================================
+      // STARTUP INFORMATION
+      // ======================================================
+
+      startupLog(
+        `Ready! Logged in as ${client.user.tag}`
+      );
+
+      startupLog(
+        `Serving ${client.guilds.cache.size} guild(s)`
+      );
+
+      startupLog(
+        `Loaded ${client.commands.size} commands`
+      );
+
+      // ======================================================
+      // SECURITY
+      // ======================================================
+
+      if (client.config?.features?.security !== false) {
+        try {
+          registerSecurityEvents(client);
+
+          startupLog(
+            "Security event system initialized."
+          );
+        } catch (error) {
+          logger.error(
+            "Failed to initialize security event system:",
+            error
+          );
+        }
+      }
+
+      // ======================================================
       // MUSIC
-      // =========================
+      // ======================================================
+
       if (client.config?.features?.music) {
         initRiffyAfterReady(client);
       }
 
-      // =========================
+      // ======================================================
       // TICKET PANEL HEALTH
-      // =========================
+      // ======================================================
+
       const ticketPanelSummary =
         await reconcileTicketPanels(client);
 
@@ -48,33 +111,37 @@ export default {
         `Ticket panel health: scanned ${ticketPanelSummary.scannedGuilds} guilds, healthy ${ticketPanelSummary.healthyPanels}, deleted ${ticketPanelSummary.deletedPanels}, missing channel ${ticketPanelSummary.missingChannels}, recovered ${ticketPanelSummary.recoveredIds}, errors ${ticketPanelSummary.errors}`
       );
 
-      // =========================
+      // ======================================================
       // NORMAL TICKETS PANEL
-      // =========================
+      // ======================================================
+
       await reconcileNormalTicketPanel(client);
 
       startupLog(
         "Normal Tickets panel reconciliation completed."
       );
 
-      // =========================
+      // ======================================================
       // MERCH TICKETS PANEL
-      // =========================
+      // ======================================================
+
       await reconcileMerchTicketPanel(client);
 
       startupLog(
         "Merch Tickets panel reconciliation completed."
       );
 
-      // =========================
+      // ======================================================
       // LEVEL ROLES
-      // =========================
+      // ======================================================
+
       const levelRoleSummary =
         await reconcileLevelRoles(client);
 
       startupLog(
         `Level role sync: scanned ${levelRoleSummary.scannedGuilds} guilds, pruned ${levelRoleSummary.prunedRewardEntries} stale rewards, re-awarded ${levelRoleSummary.rolesReAwarded} roles, errors ${levelRoleSummary.errors}`
       );
+
     } catch (error) {
       logger.error(
         "Error in ready event:",
