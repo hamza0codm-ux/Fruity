@@ -53,15 +53,7 @@ export default {
       // BOT PRESENCE
       // ======================================================
 
-      client.user.setPresence({
-  status: 'dnd',
-  activities: [
-    {
-      name: 'Fruity',
-      type: 4,
-    },
-  ],
-});
+      client.user.setPresence(botConfig.presence);
 
       // ======================================================
       // STARTUP INFORMATION
