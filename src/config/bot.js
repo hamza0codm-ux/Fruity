@@ -372,7 +372,6 @@ presence: {
     community: true,
     fun: true,
     music: true,
-    security: true,
   },
 };
 
@@ -479,7 +478,6 @@ const COMMAND_CATEGORY_FEATURE_MAP = {
   moderation: "moderation",
   music: "music",
   search: "search",
-  security: "security",
   serverstats: "counter",
   ticket: "tickets",
   tools: "tools",
