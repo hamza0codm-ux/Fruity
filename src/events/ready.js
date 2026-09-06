@@ -1,20 +1,5 @@
 import { logger } from '../utils/logger.js';
 
-export const botConfig = {
-  // =========================
-  // BOT PRESENCE
-  // =========================
-  presence: {
-    status: "dnd",
-
-    activities: [
-      {
-        name: "Helping Fruity",
-        type: 0,
-      },
-    ],
-  },
-
   // =========================
   // COMMAND BEHAVIOR
   // =========================
