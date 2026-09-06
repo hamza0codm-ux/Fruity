@@ -372,6 +372,7 @@ export const botConfig = {
     community: true,
     fun: true,
     music: true,
+    security: true,
   },
 };
 
