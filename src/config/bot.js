@@ -36,7 +36,7 @@ presence: {
       process.env.MAINTENANCE_MODE === "true",
 
     prefix:
-      process.env.PREFIX || "!",
+      process.env.PREFIX || ",",
   },
 
   // =========================
