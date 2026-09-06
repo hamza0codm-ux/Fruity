@@ -5,12 +5,12 @@ export const botConfig = {
 // BOT PRESENCE
 // =========================
 presence: {
-  status: "dnd",
+  status: "idle",
 
   activities: [
     {
       name: "Custom Status",
-      state: "Helping Fruity",
+      state: "Fruity",
       type: 4,
     },
   ],
