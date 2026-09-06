@@ -2,19 +2,19 @@ import { logger } from '../utils/logger.js';
 
 export const botConfig = {
   // =========================
-  // BOT PRESENCE
-  // =========================
-  presence: {
-    status: "dnd",
+// BOT PRESENCE
+// =========================
+presence: {
+  status: "dnd",
 
-    activities: [
-      {
-        name: "Custom Status",
-        state: "Helping Fruity",
-        type: 4,
-      },
-    ],
-  },
+  activities: [
+    {
+      name: "Custom Status",
+      state: "Helping Fruity",
+      type: 4,
+    },
+  ],
+},
 
   // =========================
   // COMMAND BEHAVIOR
