@@ -1,7 +1,6 @@
 {
   "name": "fruity",
   "version": "1.0.0",
-  "description": "Fruity - Multipurpose Discord Bot",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
